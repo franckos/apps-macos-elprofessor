@@ -11,7 +11,7 @@ Conversation libre en anglais ou espagnol avec un prof IA vocal, personnalisable
 | Rôle | Modèle | Notes |
 |------|--------|-------|
 | STT | Whisper Small (HuggingFace) | Remplacer par Voxtral Transcribe quand dispo |
-| LLM | Llama 3.1 8B via Ollama | Tourne fluide sur M4 Air |
+| LLM | Llama 3.1 8B via Ollama | Tourne fluide sur M1 Pro |
 | TTS | Kokoro (priorité) / pyttsx3 (fallback) | Remplacer par Voxtral TTS quand dispo |
 
 ---

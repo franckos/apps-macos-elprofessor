@@ -34,17 +34,25 @@ class STTEngine:
             import torch
             from transformers import pipeline
 
-            model_name = "openai/whisper-small"  # Fallback stable
-            # TODO: Remplacer par mistralai/Voxtral-Transcribe-Mini quand dispo sur HF
+            from config.settings import MODELS as _MODELS
+            stt_cfg = _MODELS.get("stt", {})
+            # Use "fallback" until Voxtral is publicly available on HuggingFace.
+            # To switch model: set MODELS["stt"]["fallback"] in config/settings.py.
+            model_name = stt_cfg.get("fallback", "openai/whisper-small")
 
             device = "mps" if torch.backends.mps.is_available() else "cpu"
             logger.info(f"Loading STT model on {device}...")
+
+            # Les clés de TARGET_LANGUAGES ("english", "spanish") correspondent
+            # exactement aux noms attendus par Whisper.
+            target_lang_key = self.settings.get("target_language", "english")
+            whisper_lang = target_lang_key
 
             self._pipeline = pipeline(
                 "automatic-speech-recognition",
                 model=model_name,
                 device=device,
-                generate_kwargs={"language": "english"},
+                generate_kwargs={"language": whisper_lang},
             )
             self._initialized = True
             logger.info("STT model loaded ✓")
@@ -56,6 +64,13 @@ class STTEngine:
         except Exception as e:
             logger.error(f"STT init error: {e}")
             return False
+
+    def set_language(self, target_lang_key: str):
+        """Met à jour la langue de transcription à chaud"""
+        if not self._initialized or not self._pipeline:
+            return
+        self._pipeline._forward_params["language"] = target_lang_key
+        logger.info(f"STT language updated: {target_lang_key}")
 
     def transcribe_file(self, audio_path: str) -> str:
         """Transcrit un fichier audio"""

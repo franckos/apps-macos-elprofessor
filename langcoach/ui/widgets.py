@@ -79,82 +79,87 @@ class StatusOrb(QWidget):
 # ── Chat Bubble ───────────────────────────────────────────────
 
 class ChatBubble(QWidget):
-    """Bulle de conversation avec animation d'apparition"""
+    """Bulle de conversation style WhatsApp dark"""
 
-    def __init__(self, text: str, role: str = "user", parent=None):
+    def __init__(self, text: str, role: str = "user", assistant_name: str = "Coach", parent=None):
         super().__init__(parent)
         self._role = role
         self._finalized = False
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 4, 0, 4)
-        layout.setSpacing(0)
+        is_user = role == "user"
 
-        if role == "user":
-            layout.addStretch()
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(12, 3, 12, 3)
+        outer.setSpacing(0)
 
-        # Container
+        if is_user:
+            outer.addStretch()
+
+        # ── Bubble container ──────────────────────────────────
         self._container = QWidget()
-        self._container.setMaximumWidth(600)
-        container_layout = QVBoxLayout(self._container)
-        container_layout.setContentsMargins(14, 10, 14, 10)
-        container_layout.setSpacing(4)
+        self._container.setMaximumWidth(480)
+        inner = QVBoxLayout(self._container)
+        inner.setContentsMargins(14, 10, 14, 8)
+        inner.setSpacing(4)
 
-        # Role label
-        role_label = QLabel("You" if role == "user" else "LangCoach")
-        role_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
-        role_label.setStyleSheet(f"""
-            color: {T['text_muted']};
-            background: transparent;
-            letter-spacing: 0.5px;
-        """)
-        container_layout.addWidget(role_label)
+        if is_user:
+            # Fond terracotta solide, texte blanc
+            self._container.setStyleSheet(f"""
+                QWidget {{
+                    background-color: #3D2010;
+                    border-radius: 18px;
+                    border-bottom-right-radius: 4px;
+                }}
+            """)
+        else:
+            # Fond sombre légèrement différent du bg, texte clair
+            self._container.setStyleSheet(f"""
+                QWidget {{
+                    background-color: #252529;
+                    border-radius: 18px;
+                    border-bottom-left-radius: 4px;
+                }}
+            """)
 
-        # Text
+        # Nom du coach (AI uniquement) — en accent, au-dessus du texte
+        if not is_user:
+            name_lbl = QLabel(assistant_name)
+            name_lbl.setFont(QFont(T["font_body"], T["font_size_xs"]))
+            name_lbl.setStyleSheet(f"""
+                color: {T['accent']};
+                background: transparent;
+                font-weight: 600;
+            """)
+            inner.addWidget(name_lbl)
+
+        # Texte principal
         self._text_label = QLabel(text)
         self._text_label.setFont(QFont(T["font_body"], T["font_size_md"]))
         self._text_label.setWordWrap(True)
         self._text_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        self._text_label.setStyleSheet(f"""
-            color: {T['text_primary']};
-            background: transparent;
-            line-height: 1.6;
-        """)
-        container_layout.addWidget(self._text_label)
+        text_color = "#FFFFFF" if is_user else T["text_primary"]
+        self._text_label.setStyleSheet(f"color: {text_color}; background: transparent;")
+        inner.addWidget(self._text_label)
 
-        # Timestamp
+        # Timestamp — aligné à droite dans une row
+        time_row = QHBoxLayout()
+        time_row.setContentsMargins(0, 0, 0, 0)
+        time_row.addStretch()
         self._time_label = QLabel(self._get_time())
-        self._time_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
-        self._time_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
-        container_layout.addWidget(self._time_label)
+        self._time_label.setFont(QFont(T["font_mono"], T["font_size_xs"] - 1))
+        time_color = "rgba(255,255,255,0.45)" if is_user else T["text_muted"]
+        self._time_label.setStyleSheet(f"color: {time_color}; background: transparent;")
+        time_row.addWidget(self._time_label)
+        inner.addLayout(time_row)
 
-        if role == "user":
-            self._container.setStyleSheet(f"""
-                QWidget {{
-                    background-color: {T['bubble_user_bg']};
-                    border: 1px solid {T['bubble_user_border']};
-                    border-radius: {T['radius_lg']}px;
-                    border-bottom-right-radius: {T['radius_sm']}px;
-                }}
-            """)
-        else:
-            self._container.setStyleSheet(f"""
-                QWidget {{
-                    background-color: {T['bubble_ai_bg']};
-                    border: 1px solid {T['bubble_ai_border']};
-                    border-radius: {T['radius_lg']}px;
-                    border-bottom-left-radius: {T['radius_sm']}px;
-                }}
-            """)
+        outer.addWidget(self._container)
 
-        layout.addWidget(self._container)
+        if not is_user:
+            outer.addStretch()
 
-        if role == "assistant":
-            layout.addStretch()
-
-        # Fade-in animation
+        # Fade-in
         self._opacity = QGraphicsOpacityEffect()
         self.setGraphicsEffect(self._opacity)
         self._anim = QPropertyAnimation(self._opacity, b"opacity")
@@ -168,7 +173,6 @@ class ChatBubble(QWidget):
         self._text_label.setText(text)
 
     def finalize(self):
-        """Marque la bulle comme complète"""
         self._finalized = True
         self._time_label.setText(self._get_time())
 
@@ -281,67 +285,102 @@ class WaveformWidget(QWidget):
 # ── Toast Notification ────────────────────────────────────────
 
 class ToastNotification(QWidget):
-    """Notification flottante qui disparaît automatiquement"""
+    """Notification moderne — slide depuis la droite, fond coloré, haut à droite"""
 
-    COLORS = {
-        "success": T["success"],
-        "error":   T["error"],
-        "warning": T["warning"],
-        "info":    T["accent"],
+    _STYLES = {
+        "success": {
+            "bg":     "#1A3D2B",
+            "border": "#2ECC71",
+            "icon":   "✓",
+            "icon_color": "#2ECC71",
+        },
+        "error": {
+            "bg":     "#3D1A1A",
+            "border": "#E74C3C",
+            "icon":   "✕",
+            "icon_color": "#E74C3C",
+        },
+        "warning": {
+            "bg":     "#3D2E1A",
+            "border": "#F39C12",
+            "icon":   "⚠",
+            "icon_color": "#F39C12",
+        },
+        "info": {
+            "bg":     "#1A2A3D",
+            "border": T["accent"],
+            "icon":   "ℹ",
+            "icon_color": T["accent"],
+        },
     }
 
-    def __init__(self, message: str, kind: str = "info", parent=None):
+    def __init__(self, message: str, kind: str = "success", parent=None):
         super().__init__(parent)
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.Tool |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
-        color = self.COLORS.get(kind, T["accent"])
+        style = self._STYLES.get(kind, self._STYLES["info"])
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
 
+        # Icône
+        icon = QLabel(style["icon"])
+        icon.setFont(QFont(T["font_body"], T["font_size_md"]))
+        icon.setStyleSheet(f"color: {style['icon_color']}; background: transparent;")
+        icon.setFixedWidth(20)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+
+        # Message
         label = QLabel(message)
         label.setFont(QFont(T["font_body"], T["font_size_sm"]))
-        label.setStyleSheet(f"""
-            color: {T['text_primary']};
-            background: transparent;
-        """)
-        layout.addWidget(label)
+        label.setStyleSheet("color: #FFFFFF; background: transparent;")
+        layout.addWidget(label, 1)
 
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {T['bg_card']};
-                border: 1px solid {color};
-                border-radius: {T['radius_md']}px;
+                background-color: {style['bg']};
+                border: 1px solid {style['border']};
+                border-radius: 12px;
             }}
         """)
-        self.setFixedWidth(300)
+        self.setFixedWidth(280)
         self.adjustSize()
 
-        # Fade in → wait → fade out
+        # Opacité
         self._opacity = QGraphicsOpacityEffect()
         self.setGraphicsEffect(self._opacity)
+        self._opacity.setOpacity(0.0)
 
+        # Fade in
         self._fade_in = QPropertyAnimation(self._opacity, b"opacity")
-        self._fade_in.setDuration(200)
+        self._fade_in.setDuration(180)
         self._fade_in.setStartValue(0.0)
         self._fade_in.setEndValue(1.0)
+        self._fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
 
+        # Fade out
         self._fade_out = QPropertyAnimation(self._opacity, b"opacity")
-        self._fade_out.setDuration(300)
+        self._fade_out.setDuration(250)
         self._fade_out.setStartValue(1.0)
         self._fade_out.setEndValue(0.0)
+        self._fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
         self._fade_out.finished.connect(self.close)
 
-        self._fade_in.start()
-        QTimer.singleShot(2500, self._fade_out.start)
-
     def show_at(self, x: int, y: int):
-        self.move(x, y)
+        # Slide depuis la droite (départ +30px à droite)
+        self.move(x + 30, y)
         self.show()
         self.raise_()
+
+        # Slide vers la position finale
+        self._slide = QPropertyAnimation(self, b"pos")
+        self._slide.setDuration(220)
+        self._slide.setStartValue(QPoint(x + 30, y))
+        self._slide.setEndValue(QPoint(x, y))
+        self._slide.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._slide.start()
+
+        self._fade_in.start()
+        QTimer.singleShot(2800, self._fade_out.start)

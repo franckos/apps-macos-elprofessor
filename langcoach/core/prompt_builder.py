@@ -3,7 +3,7 @@ LangCoach — Prompt Builder
 Génère le system prompt en fonction des paramètres de session
 """
 
-from config.settings import TEACHER_STYLES, LEVELS, TARGET_LANGUAGES, NATIVE_LANGUAGES
+from config.settings import TEACHER_STYLES, LEVELS, TARGET_LANGUAGES, NATIVE_LANGUAGES, COACHES
 
 
 def build_system_prompt(settings: dict) -> str:
@@ -12,16 +12,21 @@ def build_system_prompt(settings: dict) -> str:
     topic = settings.get("topic", "Conversation libre")
     target_lang_key = settings.get("target_language", "english")
     native_lang_key = settings.get("native_language", "fr")
+    coach_key = settings.get("coach", "angela")
 
     style = TEACHER_STYLES.get(style_key, TEACHER_STYLES["bienveillant"])
     level = LEVELS.get(level_key, LEVELS["B1"])
     target_lang = TARGET_LANGUAGES.get(target_lang_key, TARGET_LANGUAGES["english"])
     native_lang = NATIVE_LANGUAGES.get(native_lang_key, "French")
 
+    lang_coaches = COACHES.get(target_lang_key, COACHES["english"])
+    coach = lang_coaches.get(coach_key) or next(iter(lang_coaches.values()))
+    coach_name = coach["name"]
+
     lang_name = target_lang["label"].split(" ")[0]
     native_name = native_lang
 
-    prompt = f"""You are LangCoach, an expert {lang_name} language teacher.
+    prompt = f"""You are {coach_name}, an expert {lang_name} language teacher.
 
 ## Student Profile
 - Target language: {lang_name}
@@ -48,7 +53,7 @@ def build_system_prompt(settings: dict) -> str:
 {style['description']}
 
 ## Session Start
-Greet the student warmly in {lang_name}, introduce yourself briefly as LangCoach, and open the topic "{topic}" with an engaging question suited to {level_key} level.
+Greet the student warmly in {lang_name}, introduce yourself briefly as {coach_name}, and open the topic "{topic}" with an engaging question suited to {level_key} level.
 """
     return prompt.strip()
 

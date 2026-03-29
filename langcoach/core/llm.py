@@ -28,7 +28,8 @@ class LLMEngine:
 
     def set_system_prompt(self, prompt: str):
         self._system_prompt = prompt
-        self._conversation_history = []
+        # Do NOT clear history here — use reset_conversation() for explicit resets.
+        # Settings changes (level, style, topic) update the prompt but preserve context.
 
     def reset_conversation(self):
         self._conversation_history = []

@@ -69,8 +69,8 @@ def _load_fonts():
     for fname in os.listdir(assets_dir):
         if fname.endswith((".ttf", ".otf")):
             path = os.path.join(assets_dir, fname)
-            QFontDatabase.addApplicationFont(path)
-            loaded += 1
+            if QFontDatabase.addApplicationFont(path) >= 0:
+                loaded += 1
 
     if loaded:
         logging.getLogger(__name__).info(f"Loaded {loaded} custom font(s)")

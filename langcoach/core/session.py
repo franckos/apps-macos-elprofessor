@@ -12,7 +12,7 @@ from core.stt import STTEngine, AudioRecorder
 from core.llm import LLMEngine
 from core.tts import TTSEngine
 from core.prompt_builder import build_system_prompt
-from config.settings import MODELS, AUDIO, REACHY
+from config.settings import MODELS, AUDIO, REACHY, COACHES
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,7 @@ class SessionManager:
 
             # TTS
             self._tts = TTSEngine(config=MODELS["tts"])
+            self._tts.set_coach(self._get_coach_cfg(self.settings))
             status["tts"] = self._tts.initialize()
 
             # Recorder audio
@@ -178,6 +179,15 @@ class SessionManager:
                 self.on_assistant_token(token)
 
         def on_done(text: str):
+            # Trim after response is fully appended to avoid race condition.
+            self._llm.trim_history(keep_last=30)
+            # Detect error sentinel strings returned by LLMEngine ("[..error.."]").
+            if text.startswith("[") and text.endswith("]"):
+                logger.error(f"LLM returned error: {text}")
+                self._set_state(SessionState.ERROR)
+                if self.on_error:
+                    self.on_error(text)
+                return
             if self.on_assistant_done:
                 self.on_assistant_done(text)
             if self._reachy:
@@ -190,7 +200,6 @@ class SessionManager:
             prompt = user_text
 
         self._llm.chat_async(prompt, on_token=on_token, on_done=on_done)
-        self._llm.trim_history(keep_last=30)
 
     def _speak(self, text: str):
         """Lance la synthèse vocale"""
@@ -228,6 +237,23 @@ class SessionManager:
         self.settings = new_settings
         if self._llm:
             self._llm.set_system_prompt(build_system_prompt(new_settings))
+        if self._tts:
+            self._tts.set_coach(self._get_coach_cfg(new_settings))
+        if self._stt:
+            self._stt.set_language(new_settings.get("target_language", "english"))
+
+    def _get_coach_cfg(self, settings: dict) -> dict:
+        """Retourne la config du coach actuel avec la clé _target_lang injectée"""
+        lang_key = settings.get("target_language", "english")
+        coach_key = settings.get("coach", "angela")
+        lang_coaches = COACHES.get(lang_key, COACHES["english"])
+        # Fallback sur le premier coach dispo si le coach actuel n'existe pas dans cette langue
+        coach = lang_coaches.get(coach_key) or next(iter(lang_coaches.values()))
+        return {**coach, "_target_lang": lang_key}
+
+    @property
+    def coach_name(self) -> str:
+        return self._get_coach_cfg(self.settings).get("name", "Coach")
 
     def shutdown(self):
         """Nettoyage propre"""

@@ -15,7 +15,7 @@ from PyQt6.QtGui import QFont
 from config.theme import T
 from config.settings import (
     TEACHER_STYLES, LEVELS, TARGET_LANGUAGES,
-    CONVERSATION_TOPICS, NATIVE_LANGUAGES,
+    CONVERSATION_TOPICS, NATIVE_LANGUAGES, COACHES,
 )
 
 
@@ -29,11 +29,23 @@ class SettingsPanel(QWidget):
         super().__init__(parent)
         self.settings = settings.copy()
         self.on_settings_changed = None
+        self.on_close = None
 
+        self.setObjectName("SettingsPanel")
+        # WA_StyledBackground + setAutoFillBackground force Qt to paint the solid background
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
         self.setStyleSheet(f"""
-            QWidget {{
+            QWidget#SettingsPanel {{
                 background-color: {T['bg_secondary']};
                 border-left: 1px solid {T['border']};
+            }}
+            QWidget#SettingsPanel QWidget {{
+                background-color: {T['bg_secondary']};
+            }}
+            QWidget#SettingsPanel QScrollArea {{
+                background-color: {T['bg_secondary']};
+                border: none;
             }}
         """)
 
@@ -48,12 +60,10 @@ class SettingsPanel(QWidget):
         # Scrollable content
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(f"""
-            QScrollArea {{ border: none; background: transparent; }}
-        """)
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background-color: {T['bg_secondary']}; }}")
 
         content = QWidget()
-        content.setStyleSheet(f"background: transparent;")
+        content.setStyleSheet(f"background-color: {T['bg_secondary']};")
         layout = QVBoxLayout(content)
         layout.setContentsMargins(T["spacing_lg"], T["spacing_md"], T["spacing_lg"], T["spacing_xl"])
         layout.setSpacing(T["spacing_lg"])
@@ -61,6 +71,15 @@ class SettingsPanel(QWidget):
         # Sections
         layout.addWidget(self._section("🌐  Language"))
         layout.addWidget(self._build_language_selector())
+
+        layout.addWidget(self._section("🎓  Coach"))
+        self._coach_container = QWidget()
+        self._coach_container.setStyleSheet("background: transparent;")
+        self._coach_layout = QVBoxLayout(self._coach_container)
+        self._coach_layout.setContentsMargins(0, 0, 0, 0)
+        self._coach_layout.setSpacing(6)
+        self._rebuild_coach_selector()
+        layout.addWidget(self._coach_container)
 
         layout.addWidget(self._section("📊  Level"))
         layout.addWidget(self._build_level_selector())
@@ -88,11 +107,12 @@ class SettingsPanel(QWidget):
     def _make_header(self) -> QWidget:
         header = QWidget()
         header.setFixedHeight(64)
+        header.setObjectName("SettingsPanelHeader")
+        header.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         header.setStyleSheet(f"""
-            QWidget {{
+            QWidget#SettingsPanelHeader {{
                 background-color: {T['bg_secondary']};
                 border-bottom: 1px solid {T['border']};
-                border-left: 1px solid {T['border']};
             }}
         """)
         layout = QHBoxLayout(header)
@@ -102,6 +122,26 @@ class SettingsPanel(QWidget):
         title.setFont(QFont(T["font_display"], T["font_size_lg"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent; border: none;")
         layout.addWidget(title, 1)
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(32, 32)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {T['text_secondary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_sm']}px;
+                font-size: {T['font_size_md']}px;
+            }}
+            QPushButton:hover {{
+                background-color: {T['bg_hover']};
+                color: {T['text_primary']};
+                border-color: {T['accent']};
+            }}
+        """)
+        close_btn.clicked.connect(lambda: self.on_close() if self.on_close else None)
+        layout.addWidget(close_btn)
+
         return header
 
     def _section(self, text: str) -> QLabel:
@@ -153,9 +193,11 @@ class SettingsPanel(QWidget):
         current = self.settings.get("target_language", "english")
         idx = list(TARGET_LANGUAGES.keys()).index(current) if current in TARGET_LANGUAGES else 0
         combo.setCurrentIndex(idx)
-        combo.currentIndexChanged.connect(
-            lambda i: self._update("target_language", combo.itemData(i))
-        )
+        def on_lang_change(i):
+            self._update("target_language", combo.itemData(i))
+            self._rebuild_coach_selector()
+
+        combo.currentIndexChanged.connect(on_lang_change)
         return combo
 
     def _build_level_selector(self) -> QWidget:
@@ -262,6 +304,87 @@ class SettingsPanel(QWidget):
                                     border-radius: {T['radius_md']}px;
                                 }}
                             """)
+
+        w.mousePressEvent = click
+        return w
+
+    def _rebuild_coach_selector(self):
+        """Reconstruit les boutons coach selon la langue courante"""
+        while self._coach_layout.count():
+            item = self._coach_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        lang_key = self.settings.get("target_language", "english")
+        current_coach = self.settings.get("coach", "angela")
+        lang_coaches = COACHES.get(lang_key, COACHES["english"])
+
+        # Si le coach actuel n'existe pas dans cette langue, reset au premier
+        if current_coach not in lang_coaches:
+            current_coach = next(iter(lang_coaches.keys()))
+            self.settings["coach"] = current_coach
+
+        for key, coach in lang_coaches.items():
+            btn = self._coach_btn(key, coach, key == current_coach, lang_coaches)
+            self._coach_layout.addWidget(btn)
+
+    def _coach_btn(self, key: str, coach: dict, selected: bool, lang_coaches: dict) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"""
+            QWidget {{
+                background-color: {T['accent_soft'] if selected else T['bg_card']};
+                border: 1px solid {T['accent'] if selected else T['border']};
+                border-radius: {T['radius_md']}px;
+            }}
+            QWidget:hover {{
+                border-color: {T['accent']};
+                background-color: {T['accent_soft']};
+            }}
+        """)
+        w.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(10)
+
+        flag = QLabel(coach.get("flag", ""))
+        flag.setFont(QFont(T["font_body"], T["font_size_lg"]))
+        flag.setStyleSheet("background: transparent; border: none;")
+        flag.setFixedWidth(28)
+        layout.addWidget(flag)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+
+        name_lbl = QLabel(coach["name"])
+        name_lbl.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        name_lbl.setStyleSheet(f"color: {T['text_primary']}; background: transparent; border: none; font-weight: 600;")
+        text_col.addWidget(name_lbl)
+
+        gender_map = {"male": "Homme", "female": "Femme"}
+        accent = "Anglais US" if coach["lang_code"] == "a" else \
+                 "Anglais UK" if coach["lang_code"] == "b" else \
+                 "Espagnol"
+        sub = QLabel(f"{gender_map.get(coach['gender'], '')} · {accent}")
+        sub.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        sub.setStyleSheet(f"color: {T['text_secondary']}; background: transparent; border: none;")
+        text_col.addWidget(sub)
+
+        layout.addLayout(text_col, 1)
+
+        def click(event):
+            self._update("coach", key)
+            for i in range(self._coach_layout.count()):
+                item = self._coach_layout.itemAt(i)
+                if item and item.widget():
+                    is_sel = (i == list(lang_coaches.keys()).index(key))
+                    item.widget().setStyleSheet(f"""
+                        QWidget {{
+                            background-color: {T['accent_soft'] if is_sel else T['bg_card']};
+                            border: 1px solid {T['accent'] if is_sel else T['border']};
+                            border-radius: {T['radius_md']}px;
+                        }}
+                    """)
 
         w.mousePressEvent = click
         return w

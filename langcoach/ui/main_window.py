@@ -24,7 +24,7 @@ from PyQt6.QtGui import (
 from config.theme import T
 from config.settings import (
     TEACHER_STYLES, LEVELS, TARGET_LANGUAGES,
-    CONVERSATION_TOPICS, NATIVE_LANGUAGES,
+    CONVERSATION_TOPICS, NATIVE_LANGUAGES, COACHES,
     load_settings, save_settings,
 )
 from core.session import SessionManager, SessionState
@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
         self._settings_panel = SettingsPanel(self.settings, self)
         self._settings_panel.setVisible(False)
         self._settings_panel.on_settings_changed = self._on_settings_changed
+        self._settings_panel.on_close = self._toggle_settings
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -209,6 +210,7 @@ class MainWindow(QMainWindow):
         # Session info cards
         self._info_cards = {}
         infos = [
+            ("coach", "🎓", "Coach", "Angela"),
             ("language", "🌐", "Language", "English"),
             ("level", "📊", "Level", "B1"),
             ("style", "🎭", "Style", "Bienveillant"),
@@ -463,9 +465,14 @@ class MainWindow(QMainWindow):
         self.session.on_error = lambda e: self.sig_error.emit(e)
 
     def _setup_shortcuts(self):
-        QShortcut(QKeySequence("R"), self, self._on_reset)
-        QShortcut(QKeySequence("S"), self, self._toggle_settings)
-        QShortcut(QKeySequence("A"), self, lambda: self._btn_vad.click())
+        def _if_not_typing(action):
+            """Only trigger shortcut when text input doesn't have focus."""
+            if not self._text_input.hasFocus():
+                action()
+
+        QShortcut(QKeySequence("R"), self, lambda: _if_not_typing(self._on_reset))
+        QShortcut(QKeySequence("S"), self, lambda: _if_not_typing(self._toggle_settings))
+        QShortcut(QKeySequence("A"), self, lambda: _if_not_typing(self._btn_vad.click))
         QShortcut(QKeySequence("Escape"), self, self._on_stop)
 
     # ── Session ───────────────────────────────────────────────
@@ -508,6 +515,13 @@ class MainWindow(QMainWindow):
         )
         self._model_badge.setStyleSheet(f"color: {T['success']}; background: transparent;")
 
+    def _coach_name(self) -> str:
+        lang_key = self.settings.get("target_language", "english")
+        coach_key = self.settings.get("coach", "angela")
+        lang_coaches = COACHES.get(lang_key, COACHES["english"])
+        coach = lang_coaches.get(coach_key) or next(iter(lang_coaches.values()))
+        return coach["name"]
+
     def _add_user_bubble(self, text: str):
         bubble = ChatBubble(text, role="user")
         self._chat_layout.addWidget(bubble)
@@ -518,7 +532,7 @@ class MainWindow(QMainWindow):
     def _handle_ai_token(self, token: str):
         self._current_ai_text += token
         if self._current_ai_bubble is None:
-            self._current_ai_bubble = ChatBubble("", role="assistant")
+            self._current_ai_bubble = ChatBubble("", role="assistant", assistant_name=self._coach_name())
             self._chat_layout.addWidget(self._current_ai_bubble)
         self._current_ai_bubble.set_text(self._current_ai_text)
         self._scroll_to_bottom()
@@ -593,13 +607,18 @@ class MainWindow(QMainWindow):
 
     def _update_sidebar_info(self):
         lang_key = self.settings.get("target_language", "english")
+        coach_key = self.settings.get("coach", "angela")
         level_key = self.settings.get("level", "B1")
         style_key = self.settings.get("teacher_style", "bienveillant")
         topic = self.settings.get("topic", "Free talk")
 
         lang = TARGET_LANGUAGES.get(lang_key, {})
         style = TEACHER_STYLES.get(style_key, {})
+        lang_coaches = COACHES.get(lang_key, COACHES["english"])
+        coach = lang_coaches.get(coach_key) or next(iter(lang_coaches.values()))
 
+        if "coach" in self._info_cards:
+            self._info_cards["coach"].setText(f"{coach.get('flag', '')} {coach.get('name', coach_key)}")
         if "language" in self._info_cards:
             self._info_cards["language"].setText(lang.get("label", lang_key))
         if "level" in self._info_cards:
@@ -622,7 +641,7 @@ class MainWindow(QMainWindow):
 
     def _show_toast(self, message: str, kind: str = "info"):
         toast = ToastNotification(message, kind=kind, parent=self.centralWidget())
-        toast.show_at(self.width() - 320, self.height() - 80)
+        toast.show_at(self.width() - 300, 80)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -18,11 +18,11 @@ SETTINGS_FILE = DATA_DIR / "settings.json"
 MODELS = {
     "stt": {
         "name": "mistralai/Voxtral-Transcribe-Mini",
-        "fallback": "openai/whisper-small",   # Si Voxtral pas dispo
+        "fallback": "openai/whisper-small",  # Si Voxtral pas dispo
         "language": "auto",
     },
     "llm": {
-        "provider": "ollama",                  # "ollama" | "mistral_api"
+        "provider": "ollama",  # "ollama" | "mistral_api"
         "model": "llama3.1:8b",
         "temperature": 0.7,
         "max_tokens": 300,
@@ -30,21 +30,21 @@ MODELS = {
     },
     "tts": {
         "name": "mistralai/Voxtral-TTS",
-        "fallback": "pyttsx3",                # TTS local sans IA
-        "speed": 1.0,                          # 0.5 → 2.0
-        "voice_sample": None,                  # Path vers fichier audio pour voice cloning
+        "fallback": "pyttsx3",  # TTS local sans IA
+        "speed": 1.0,  # 0.5 → 2.0
+        "voice_sample": None,  # Path vers fichier audio pour voice cloning
     },
 }
 
 # ── Audio ─────────────────────────────────────────────────────
 AUDIO = {
-    "sample_rate":      16000,
-    "channels":         1,
-    "chunk_size":       1024,
-    "vad_threshold":    0.5,       # Sensibilité VAD (0.0 → 1.0)
-    "silence_duration": 1.2,       # Secondes de silence avant envoi
-    "max_record_sec":   30,        # Durée max d'un enregistrement
-    "min_record_sec":   0.5,       # Durée min (évite les faux déclenchements)
+    "sample_rate": 16000,
+    "channels": 1,
+    "chunk_size": 1024,
+    "vad_threshold": 0.02,  # Sensibilité VAD RMS (0.001 silencieux → 0.05 parole normale)
+    "silence_duration": 1.2,  # Secondes de silence avant envoi
+    "max_record_sec": 30,  # Durée max d'un enregistrement
+    "min_record_sec": 0.5,  # Durée min (évite les faux déclenchements)
 }
 
 # ── Profils prof ──────────────────────────────────────────────
@@ -97,6 +97,43 @@ TARGET_LANGUAGES = {
     "spanish": {"label": "Español 🇪🇸", "code": "es", "tts_lang": "es-ES"},
 }
 
+# ── Coaches ───────────────────────────────────────────────────
+# lang_code : codes Kokoro — a=américain, b=britannique, e=espagnol
+COACHES = {
+    "english": {
+        "angela": {
+            "name": "Angela",
+            "gender": "female",
+            "flag": "🇬🇧",
+            "lang_code": "b",       # British English
+            "voice": "bf_emma",
+        },
+        "georges": {
+            "name": "Georges",
+            "gender": "male",
+            "flag": "🇺🇸",
+            "lang_code": "a",       # American English
+            "voice": "am_adam",
+        },
+    },
+    "spanish": {
+        "aitanita": {
+            "name": "Aitanita",
+            "gender": "female",
+            "flag": "🇪🇸",
+            "lang_code": "e",
+            "voice": "ef_dora",
+        },
+        "javier": {
+            "name": "Javier",
+            "gender": "male",
+            "flag": "🇪🇸",
+            "lang_code": "e",
+            "voice": "em_alex",
+        },
+    },
+}
+
 # ── Langues maternelles ───────────────────────────────────────
 NATIVE_LANGUAGES = {
     "fr": "Français",
@@ -129,10 +166,10 @@ CONVERSATION_TOPICS = [
 
 # ── Reachy Bridge (stub) ──────────────────────────────────────
 REACHY = {
-    "enabled": False,             # Activer quand Reachy connecté
+    "enabled": False,  # Activer quand Reachy connecté
     "host": "192.168.1.100",
     "port": 8765,
-    "reconnect_interval": 5,      # secondes
+    "reconnect_interval": 5,  # secondes
 }
 
 # ── Paramètres par défaut ─────────────────────────────────────
@@ -141,8 +178,9 @@ DEFAULT_SETTINGS = {
     "level": "B1",
     "topic": "Conversation libre",
     "target_language": "english",
+    "coach": "angela",
     "native_language": "fr",
-    "input_mode": "vad",          # "vad" | "push_to_talk" | "both"
+    "input_mode": "vad",  # "vad" | "push_to_talk" | "both"
     "show_transcript": True,
     "show_corrections": True,
     "auto_send": True,
