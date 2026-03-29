@@ -1,0 +1,33 @@
+# LangCoach — Dependencies
+# Install: pip install -r requirements.txt
+# macOS only: brew install portaudio (required by sounddevice)
+
+# UI
+PyQt6>=6.6.0
+
+# Audio
+sounddevice>=0.4.6
+numpy>=1.24.0
+
+# STT (Whisper / Voxtral via HuggingFace)
+transformers>=4.40.0
+torch>=2.2.0
+
+# LLM (local via Ollama)
+ollama>=0.2.0
+
+# TTS option 1: Kokoro (recommandé — belle voix, open source)
+# pip install kokoro
+# kokoro>=0.9.0
+
+# TTS option 2: pyttsx3 (fallback basique)
+pyttsx3>=2.90
+
+# Reachy bridge (optionnel)
+# websocket-client>=1.7.0
+
+# Mistral API (fallback cloud, optionnel)
+# mistralai>=1.0.0
+
+# Utilitaires
+pathlib2>=2.3.7
