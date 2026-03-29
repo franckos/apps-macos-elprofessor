@@ -51,12 +51,16 @@ class SessionManager:
         self.on_models_ready: Optional[Callable[[dict], None]] = None
 
         self._ptt_active = False
+        self._profile: Optional[dict] = None
+        self._stats = None
+        self._exchange_start_ms: int = 0
 
-    def initialize(self, settings: dict):
+    def initialize(self, settings: dict, profile: Optional[dict] = None, stats=None):
         """Lance l'initialisation des modèles en arrière-plan"""
         self.settings = settings
+        self._profile = profile
+        self._stats = stats
         self._set_state(SessionState.LOADING)
-
         t = threading.Thread(target=self._init_models, daemon=True)
         t.start()
 
@@ -71,8 +75,9 @@ class SessionManager:
 
             # LLM
             self._llm = LLMEngine(config=MODELS["llm"])
-            self._llm.set_system_prompt(build_system_prompt(self.settings))
-            status["llm"] = True  # Ollama est vérifiable au premier appel
+            user_name = self._profile.get("name", "the student") if self._profile else "the student"
+            self._llm.set_system_prompt(build_system_prompt(self.settings, user_name=user_name))
+            status["llm"] = True
 
             # TTS
             self._tts = TTSEngine(config=MODELS["tts"])
@@ -90,6 +95,13 @@ class SessionManager:
             self._reachy = ReachyBridge(config=REACHY)
             self._reachy.on_connected = lambda: logger.info("Reachy connected")
             self._reachy.start()
+
+            # Start stats session
+            if self._stats and self._profile:
+                lang = self.settings.get("target_language", "english")
+                level = self.settings.get("level", "B1")
+                topic = self.settings.get("topic", "Conversation libre")
+                self._stats.start_session(self._profile, language=lang, level=level, topic=topic)
 
             # Démarre la session avec le greeting de l'IA
             self._set_state(SessionState.READY)
@@ -168,7 +180,8 @@ class SessionManager:
         self._get_ai_response(text)
 
     def _get_ai_response(self, user_text: str, is_greeting: bool = False):
-        """Appelle le LLM et joue la réponse TTS"""
+        import time
+        self._exchange_start_ms = int(time.time() * 1000)
         self._set_state(SessionState.PROCESSING)
 
         full_response = []
@@ -179,26 +192,25 @@ class SessionManager:
                 self.on_assistant_token(token)
 
         def on_done(text: str):
-            # Trim after response is fully appended to avoid race condition.
+            import time
             self._llm.trim_history(keep_last=30)
-            # Detect error sentinel strings returned by LLMEngine ("[..error.."]").
             if text.startswith("[") and text.endswith("]"):
                 logger.error(f"LLM returned error: {text}")
                 self._set_state(SessionState.ERROR)
                 if self.on_error:
                     self.on_error(text)
                 return
+            # Record to stats (skip greeting)
+            if not is_greeting and self._stats and user_text.strip():
+                duration_ms = int(time.time() * 1000) - self._exchange_start_ms
+                self._stats.record_exchange(user_text, text, duration_ms)
             if self.on_assistant_done:
                 self.on_assistant_done(text)
             if self._reachy:
                 self._reachy.send_transcript(text, role="assistant")
             self._speak(text)
 
-        if is_greeting:
-            prompt = "[Start the session with your opening greeting]"
-        else:
-            prompt = user_text
-
+        prompt = "[Start the session with your opening greeting]" if is_greeting else user_text
         self._llm.chat_async(prompt, on_token=on_token, on_done=on_done)
 
     def _speak(self, text: str):
@@ -233,18 +245,26 @@ class SessionManager:
 
     def reset_session(self):
         """Repart de zéro dans la même session"""
+        if self._stats:
+            self._stats.end_session()
         if self._llm:
             self._llm.reset_conversation()
         if self._tts:
             self._tts.stop()
         self._set_state(SessionState.READY)
+        # Start a new stats session
+        if self._stats and self._profile:
+            lang = self.settings.get("target_language", "english")
+            level = self.settings.get("level", "B1")
+            topic = self.settings.get("topic", "Conversation libre")
+            self._stats.start_session(self._profile, language=lang, level=level, topic=topic)
         self._get_ai_response("", is_greeting=True)
 
     def update_settings(self, new_settings: dict):
-        """Met à jour les paramètres et reconstruit le prompt"""
         self.settings = new_settings
         if self._llm:
-            self._llm.set_system_prompt(build_system_prompt(new_settings))
+            user_name = self._profile.get("name", "the student") if self._profile else "the student"
+            self._llm.set_system_prompt(build_system_prompt(new_settings, user_name=user_name))
         if self._tts:
             self._tts.set_coach(self._get_coach_cfg(new_settings))
         if self._stt:
@@ -266,6 +286,8 @@ class SessionManager:
     def shutdown(self):
         """Nettoyage propre"""
         try:
+            if self._stats:
+                self._stats.end_session()
             if self._recorder:
                 self._recorder.stop_vad()
             if self._tts:
