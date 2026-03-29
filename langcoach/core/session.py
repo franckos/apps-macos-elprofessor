@@ -218,6 +218,14 @@ class SessionManager:
 
         self._tts.speak(text, on_done=on_done)
 
+    def replay(self, text: str):
+        """Rejoue la synthèse vocale d'un texte (si le moteur est disponible et libre)"""
+        if not self._tts or not text.strip():
+            return
+        if self._state not in (SessionState.READY, SessionState.IDLE):
+            return
+        self._speak(text)
+
     def stop_speaking(self):
         if self._tts:
             self._tts.stop()

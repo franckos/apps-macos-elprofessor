@@ -28,9 +28,9 @@ def main():
         from PyQt6.QtGui import QFont, QFontDatabase, QColor
 
         app = QApplication(sys.argv)
-        app.setApplicationName("LangCoach")
+        app.setApplicationName("Echo")
         app.setApplicationVersion("1.0.0")
-        app.setOrganizationName("LangCoach")
+        app.setOrganizationName("Quantelys")
 
         # Charge les polices Google Fonts si disponibles localement
         # (Sinon fallback sur polices système)
@@ -38,10 +38,12 @@ def main():
 
         # Font par défaut
         from config.theme import T
+
         default_font = QFont(T["font_body"], T["font_size_md"])
         app.setFont(default_font)
 
         from ui.main_window import MainWindow
+
         window = MainWindow()
         window.show()
 

@@ -6,32 +6,64 @@ UI principale de l'application
 import sys
 import threading
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QScrollArea, QFrame,
-    QSizePolicy, QTextEdit, QLineEdit, QStackedWidget,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QScrollArea,
+    QFrame,
+    QSizePolicy,
+    QTextEdit,
+    QLineEdit,
+    QStackedWidget,
     QGraphicsDropShadowEffect,
 )
 from PyQt6.QtCore import (
-    Qt, QTimer, QPropertyAnimation, QEasingCurve,
-    pyqtSignal, QThread, QSize, QRect,
+    Qt,
+    QTimer,
+    QPropertyAnimation,
+    QEasingCurve,
+    pyqtSignal,
+    QThread,
+    QSize,
+    QRect,
 )
 from PyQt6.QtGui import (
-    QFont, QColor, QPalette, QPainter, QBrush, QPen,
-    QLinearGradient, QFontDatabase, QIcon, QKeySequence,
-    QShortcut, QPixmap,
+    QFont,
+    QColor,
+    QPalette,
+    QPainter,
+    QBrush,
+    QPen,
+    QLinearGradient,
+    QFontDatabase,
+    QIcon,
+    QKeySequence,
+    QShortcut,
+    QPixmap,
 )
 
 from config.theme import T
 from config.settings import (
-    TEACHER_STYLES, LEVELS, TARGET_LANGUAGES,
-    CONVERSATION_TOPICS, NATIVE_LANGUAGES, COACHES,
-    load_settings, save_settings,
+    TEACHER_STYLES,
+    LEVELS,
+    TARGET_LANGUAGES,
+    CONVERSATION_TOPICS,
+    NATIVE_LANGUAGES,
+    COACHES,
+    load_settings,
+    save_settings,
 )
 from core.session import SessionManager, SessionState
 from ui.settings_panel import SettingsPanel
 from ui.widgets import (
-    StatusOrb, ChatBubble, AnimatedButton,
-    WaveformWidget, ToastNotification,
+    StatusOrb,
+    ChatBubble,
+    AnimatedButton,
+    WaveformWidget,
+    ToastNotification,
 )
 
 
@@ -65,7 +97,7 @@ class MainWindow(QMainWindow):
     # ── Setup ─────────────────────────────────────────────────
 
     def _setup_window(self):
-        self.setWindowTitle("LangCoach")
+        self.setWindowTitle("Echo")
         self.resize(T["window_width"], T["window_height"])
         self.setMinimumSize(T["window_min_width"], T["window_min_height"])
         self.setWindowFlags(Qt.WindowType.Window)
@@ -77,7 +109,8 @@ class MainWindow(QMainWindow):
         self._font_mono = QFont(T["font_mono"], T["font_size_sm"])
 
     def _apply_theme(self):
-        self.setStyleSheet(f"""
+        self.setStyleSheet(
+            f"""
             QMainWindow {{
                 background-color: {T['bg_primary']};
             }}
@@ -111,7 +144,8 @@ class MainWindow(QMainWindow):
                 padding: 6px 10px;
                 font-size: {T['font_size_sm']}px;
             }}
-        """)
+        """
+        )
 
     def _build_ui(self):
         central = QWidget()
@@ -163,12 +197,14 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setFixedWidth(T["sidebar_width"])
-        sidebar.setStyleSheet(f"""
+        sidebar.setStyleSheet(
+            f"""
             QWidget {{
                 background-color: {T['bg_secondary']};
                 border-right: 1px solid {T['border']};
             }}
-        """)
+        """
+        )
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(T["spacing_md"], T["spacing_xl"], T["spacing_md"], T["spacing_md"])
@@ -180,12 +216,12 @@ class MainWindow(QMainWindow):
         logo_layout.setContentsMargins(0, 0, 0, 0)
         logo_layout.setSpacing(4)
 
-        title = QLabel("LangCoach")
+        title = QLabel("Echo")
         title.setFont(QFont(T["font_display"], T["font_size_2xl"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
         logo_layout.addWidget(title)
 
-        tagline = QLabel("Your AI language partner")
+        tagline = QLabel("Le coach vocal qui vous répond")
         tagline.setFont(QFont(T["font_body"], T["font_size_sm"]))
         tagline.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
         logo_layout.addWidget(tagline)
@@ -247,7 +283,8 @@ class MainWindow(QMainWindow):
 
     def _make_info_card(self, emoji: str, label: str, value: str):
         card = QWidget()
-        card.setStyleSheet(f"""
+        card.setStyleSheet(
+            f"""
             QWidget {{
                 background-color: {T['bg_card']};
                 border-radius: {T['radius_md']}px;
@@ -256,7 +293,8 @@ class MainWindow(QMainWindow):
             QWidget:hover {{
                 border-color: {T['accent']};
             }}
-        """)
+        """
+        )
         layout = QHBoxLayout(card)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
@@ -340,20 +378,19 @@ class MainWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(f"""
+        scroll.setStyleSheet(
+            f"""
             QScrollArea {{
                 background-color: {T['bg_primary']};
                 border: none;
             }}
-        """)
+        """
+        )
 
         self._chat_container = QWidget()
         self._chat_container.setStyleSheet(f"background-color: {T['bg_primary']};")
         self._chat_layout = QVBoxLayout(self._chat_container)
-        self._chat_layout.setContentsMargins(
-            T["spacing_xl"], T["spacing_lg"],
-            T["spacing_xl"], T["spacing_lg"]
-        )
+        self._chat_layout.setContentsMargins(T["spacing_xl"], T["spacing_lg"], T["spacing_xl"], T["spacing_lg"])
         self._chat_layout.setSpacing(T["spacing_sm"])
         self._chat_layout.addStretch()
 
@@ -364,12 +401,14 @@ class MainWindow(QMainWindow):
     def _build_input_bar(self) -> QWidget:
         bar = QWidget()
         bar.setFixedHeight(90)
-        bar.setStyleSheet(f"""
+        bar.setStyleSheet(
+            f"""
             QWidget {{
                 background-color: {T['bg_secondary']};
                 border-top: 1px solid {T['border']};
             }}
-        """)
+        """
+        )
 
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(T["spacing_xl"], T["spacing_md"], T["spacing_xl"], T["spacing_md"])
@@ -387,7 +426,8 @@ class MainWindow(QMainWindow):
         self._text_input = QLineEdit()
         self._text_input.setPlaceholderText("Type a message or hold Space to talk…")
         self._text_input.setFixedHeight(44)
-        self._text_input.setStyleSheet(f"""
+        self._text_input.setStyleSheet(
+            f"""
             QLineEdit {{
                 background-color: {T['bg_card']};
                 color: {T['text_primary']};
@@ -404,7 +444,8 @@ class MainWindow(QMainWindow):
             QLineEdit::placeholder {{
                 color: {T['text_muted']};
             }}
-        """)
+        """
+        )
         self._text_input.returnPressed.connect(self._on_text_send)
         layout.addWidget(self._text_input, 1)
 
@@ -427,7 +468,8 @@ class MainWindow(QMainWindow):
         self._btn_stop = QPushButton("■")
         self._btn_stop.setFixedSize(44, 44)
         self._btn_stop.setToolTip("Stop speaking (Esc)")
-        self._btn_stop.setStyleSheet(f"""
+        self._btn_stop.setStyleSheet(
+            f"""
             QPushButton {{
                 background-color: {T['bg_card']};
                 color: {T['error']};
@@ -440,7 +482,8 @@ class MainWindow(QMainWindow):
                 color: white;
                 border-color: {T['error']};
             }}
-        """)
+        """
+        )
         self._btn_stop.clicked.connect(self._on_stop)
         layout.addWidget(self._btn_stop)
 
@@ -486,20 +529,18 @@ class MainWindow(QMainWindow):
 
     def _handle_state_change(self, state: SessionState):
         labels = {
-            SessionState.IDLE:       ("Idle", T["text_muted"]),
-            SessionState.LOADING:    ("Loading models…", T["warning"]),
-            SessionState.READY:      ("Ready", T["success"]),
-            SessionState.LISTENING:  ("Listening…", T["accent"]),
+            SessionState.IDLE: ("Idle", T["text_muted"]),
+            SessionState.LOADING: ("Loading models…", T["warning"]),
+            SessionState.READY: ("Ready", T["success"]),
+            SessionState.LISTENING: ("Listening…", T["accent"]),
             SessionState.PROCESSING: ("Thinking…", T["info"]),
-            SessionState.SPEAKING:   ("Speaking…", T["accent"]),
-            SessionState.ERROR:      ("Error", T["error"]),
+            SessionState.SPEAKING: ("Speaking…", T["accent"]),
+            SessionState.ERROR: ("Error", T["error"]),
         }
         text, color = labels.get(state, ("Unknown", T["text_muted"]))
         self._status_label.setText(text)
         self._status_orb.set_color(color)
-        self._status_orb.set_animated(state in (
-            SessionState.LISTENING, SessionState.PROCESSING, SessionState.SPEAKING
-        ))
+        self._status_orb.set_animated(state in (SessionState.LISTENING, SessionState.PROCESSING, SessionState.SPEAKING))
 
         if state == SessionState.LISTENING:
             self._waveform.start()
@@ -510,9 +551,7 @@ class MainWindow(QMainWindow):
         stt_ok = "✓" if status.get("stt") else "✗"
         tts_ok = "✓" if status.get("tts") else "✗"
         provider = self.session.tts_provider
-        self._model_badge.setText(
-            f"STT {stt_ok}  LLM ✓  TTS {tts_ok}\n{provider}"
-        )
+        self._model_badge.setText(f"STT {stt_ok}  LLM ✓  TTS {tts_ok}\n{provider}")
         self._model_badge.setStyleSheet(f"color: {T['success']}; background: transparent;")
 
     def _coach_name(self) -> str:
@@ -540,6 +579,7 @@ class MainWindow(QMainWindow):
     def _handle_ai_done(self, text: str):
         if self._current_ai_bubble:
             self._current_ai_bubble.set_text(text)
+            self._current_ai_bubble.on_replay = lambda t=text: self.session.replay(t)
             self._current_ai_bubble.finalize()
         self._scroll_to_bottom()
 
@@ -635,9 +675,9 @@ class MainWindow(QMainWindow):
         self._session_title.setText(f"{lang} · {level} · {topic}")
 
     def _scroll_to_bottom(self):
-        QTimer.singleShot(50, lambda: self._chat_scroll.verticalScrollBar().setValue(
-            self._chat_scroll.verticalScrollBar().maximum()
-        ))
+        QTimer.singleShot(
+            50, lambda: self._chat_scroll.verticalScrollBar().setValue(self._chat_scroll.verticalScrollBar().maximum())
+        )
 
     def _show_toast(self, message: str, kind: str = "info"):
         toast = ToastNotification(message, kind=kind, parent=self.centralWidget())

@@ -5,6 +5,7 @@ StatusOrb, ChatBubble, AnimatedButton, WaveformWidget, ToastNotification
 
 import math
 import time
+from typing import Optional, Callable
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
     QGraphicsOpacityEffect, QSizePolicy,
@@ -85,6 +86,8 @@ class ChatBubble(QWidget):
         super().__init__(parent)
         self._role = role
         self._finalized = False
+        self.on_replay: Optional[Callable] = None
+        self._replay_btn: Optional[QPushButton] = None
 
         is_user = role == "user"
 
@@ -146,7 +149,28 @@ class ChatBubble(QWidget):
         # Timestamp — aligné à droite dans une row
         time_row = QHBoxLayout()
         time_row.setContentsMargins(0, 0, 0, 0)
+        time_row.setSpacing(6)
         time_row.addStretch()
+
+        if not is_user:
+            self._replay_btn = QPushButton("🔊")
+            self._replay_btn.setFixedSize(20, 20)
+            self._replay_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._replay_btn.setToolTip("Rejouer")
+            self._replay_btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    color: rgba(255,255,255,0.25);
+                    font-size: 11px;
+                    padding: 0;
+                }
+                QPushButton:hover { color: rgba(255,255,255,0.75); }
+            """)
+            self._replay_btn.setVisible(False)
+            self._replay_btn.clicked.connect(lambda: self.on_replay() if self.on_replay else None)
+            time_row.addWidget(self._replay_btn)
+
         self._time_label = QLabel(self._get_time())
         self._time_label.setFont(QFont(T["font_mono"], T["font_size_xs"] - 1))
         time_color = "rgba(255,255,255,0.45)" if is_user else T["text_muted"]
@@ -175,6 +199,8 @@ class ChatBubble(QWidget):
     def finalize(self):
         self._finalized = True
         self._time_label.setText(self._get_time())
+        if self._replay_btn is not None:
+            self._replay_btn.setVisible(True)
 
     def _get_time(self) -> str:
         from datetime import datetime
