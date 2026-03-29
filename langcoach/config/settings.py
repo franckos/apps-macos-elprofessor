@@ -4,8 +4,10 @@ Toutes les constantes modifiables de l'app
 """
 
 import json
+import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 # ── Chemins ──────────────────────────────────────────────────
 APP_DIR = Path(__file__).parent.parent
@@ -13,6 +15,8 @@ CONFIG_DIR = APP_DIR / "config"
 DATA_DIR = Path.home() / ".langcoach"
 PROFILES_FILE = DATA_DIR / "profiles.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+DB_FILE = DATA_DIR / "data.db"
+LAST_PROFILE_FILE = DATA_DIR / "last_profile.json"
 
 # ── Modèles ──────────────────────────────────────────────────
 MODELS = {
@@ -200,3 +204,41 @@ def save_settings(settings: dict):
     DATA_DIR.mkdir(exist_ok=True)
     with open(SETTINGS_FILE, "w") as f:
         json.dump(settings, f, indent=2, ensure_ascii=False)
+
+
+def load_last_profile_id() -> Optional[str]:
+    """Returns the last-used profile ID, or None."""
+    if LAST_PROFILE_FILE.exists():
+        try:
+            with open(LAST_PROFILE_FILE) as f:
+                return json.load(f).get("profile_id")
+        except Exception:
+            pass
+    return None
+
+
+def save_last_profile_id(profile_id: str):
+    DATA_DIR.mkdir(exist_ok=True)
+    with open(LAST_PROFILE_FILE, "w") as f:
+        json.dump({"profile_id": profile_id}, f)
+
+
+def migrate_if_needed(db) -> bool:
+    """
+    If no profiles exist in DB but old settings.json exists, create a default profile.
+    Returns True if migration happened.
+    """
+    if db.list_profiles():
+        return False
+    if not SETTINGS_FILE.exists():
+        return False
+    try:
+        with open(SETTINGS_FILE) as f:
+            old_settings = {**DEFAULT_SETTINGS, **json.load(f)}
+        profile = db.create_profile("Moi", "🧑", old_settings)
+        save_last_profile_id(profile["id"])
+        logging.getLogger(__name__).info("Migrated old settings.json to profile")
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Migration failed: {e}")
+        return False
