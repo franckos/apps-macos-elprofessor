@@ -209,7 +209,7 @@ class Database:
             "AVG(CAST(error_count AS REAL) / MAX(exchange_count, 1)) as avg_errors, "
             "AVG(quality_score) as avg_quality, "
             "SUM(CAST(COALESCE(ended_at, started_at) - started_at AS REAL) / 60000) as total_min "
-            "FROM sessions WHERE profile_id=? AND ended_at IS NOT NULL",
+            "FROM sessions WHERE profile_id=?",
             (profile_id,),
         ).fetchone()
         return {
@@ -248,7 +248,7 @@ class Database:
     def _compute_streak(self, profile_id: str) -> int:
         rows = self._conn.execute(
             "SELECT DATE(started_at/1000, 'unixepoch') as day FROM sessions "
-            "WHERE profile_id=? AND ended_at IS NOT NULL "
+            "WHERE profile_id=? "
             "GROUP BY day ORDER BY day DESC",
             (profile_id,),
         ).fetchall()

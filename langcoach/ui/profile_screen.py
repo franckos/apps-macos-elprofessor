@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QStackedWidget,
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from config.theme import T
@@ -82,23 +82,7 @@ class ProfileScreen(QDialog):
         self.setStyleSheet(f"background-color: {T['bg_primary']}; color: {T['text_primary']};")
 
         profiles = db.list_profiles()
-
-        if not profiles:
-            self._embed_wizard()
-        elif len(profiles) == 1:
-            self._selected_profile = profiles[0]
-            db.touch_profile(profiles[0]["id"])
-            QTimer.singleShot(0, self.accept)
-            QVBoxLayout(self)  # empty layout to avoid Qt warnings
-        else:
-            self._build_splash(profiles)
-
-    def _embed_wizard(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        wizard = ProfileWizard(self._db, parent=self)
-        wizard.profile_created.connect(self._on_wizard_done)
-        layout.addWidget(wizard)
+        self._build_splash(profiles)
 
     def _build_splash(self, profiles: list):
         layout = QVBoxLayout(self)

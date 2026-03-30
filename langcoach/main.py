@@ -39,13 +39,29 @@ def main():
         migrate_if_needed(db)
 
         # ── Profile selection ──────────────────────────────────
-        from ui.profile_screen import ProfileScreen
+        from ui.profile_screen import ProfileScreen, ProfileWizard
 
-        screen = ProfileScreen(db)
-        if screen.exec() != QDialog.DialogCode.Accepted:
-            sys.exit(0)
+        profiles = db.list_profiles()
 
-        profile = screen.selected_profile
+        if not profiles:
+            # No profiles yet → show wizard directly
+            wizard = ProfileWizard(db)
+            created_id = []
+            wizard.profile_created.connect(lambda pid: created_id.append(pid))
+            if wizard.exec() != QDialog.DialogCode.Accepted or not created_id:
+                sys.exit(0)
+            profile = db.get_profile(created_id[0])
+        elif len(profiles) == 1:
+            # Single profile → auto-select
+            db.touch_profile(profiles[0]["id"])
+            profile = profiles[0]
+        else:
+            # Multiple profiles → splash screen
+            screen = ProfileScreen(db)
+            if screen.exec() != QDialog.DialogCode.Accepted:
+                sys.exit(0)
+            profile = screen.selected_profile
+
         if not profile:
             sys.exit(0)
 

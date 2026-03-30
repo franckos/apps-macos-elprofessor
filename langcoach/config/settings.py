@@ -237,6 +237,7 @@ def migrate_if_needed(db) -> bool:
             old_settings = {**DEFAULT_SETTINGS, **json.load(f)}
         profile = db.create_profile("Moi", "🧑", old_settings)
         save_last_profile_id(profile["id"])
+        SETTINGS_FILE.rename(SETTINGS_FILE.with_suffix(".json.migrated"))
         logging.getLogger(__name__).info("Migrated old settings.json to profile")
         return True
     except Exception as e:

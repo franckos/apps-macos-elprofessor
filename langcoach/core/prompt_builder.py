@@ -39,7 +39,7 @@ def build_system_prompt(settings: dict, user_name: str = "the student") -> str:
 {style['system_hint']}
 
 ## Core Rules
-1. ALWAYS respond ONLY in {lang_name}, never in the student's native language.
+1. ALWAYS respond ONLY in {lang_name}. NEVER translate your response or add any translation into another language. Do NOT include parenthetical translations. Do NOT add text in {native_name} or any other language.
 2. Keep responses concise and conversational (2-4 sentences max unless explaining something).
 3. Adapt your vocabulary and sentence complexity strictly to {level_key} level.
 4. When {user_name} makes a mistake, correct it using this EXACT format inline:

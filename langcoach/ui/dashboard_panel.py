@@ -507,7 +507,10 @@ Fournis en français :
             return llm.chat(prompt) or "Analyse non disponible."
 
         def in_thread():
-            result = run()
+            try:
+                result = run()
+            except Exception as e:
+                result = f"Erreur lors de l'analyse : {e}"
             QTimer.singleShot(0, lambda: self._on_ai_result(result))
 
         threading.Thread(target=in_thread, daemon=True).start()
