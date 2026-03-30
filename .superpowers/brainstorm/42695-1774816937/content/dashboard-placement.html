@@ -1,0 +1,76 @@
+<h2>Où vit le Dashboard dans l'app ?</h2>
+<p class="subtitle">Choisis l'intégration qui te convient le mieux</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;gap:8px;height:160px;font-size:11px;">
+        <div style="width:140px;background:#1a1a2e;border-radius:6px;padding:10px;color:#888;">
+          <div style="color:#fff;font-weight:bold;margin-bottom:8px;">Echo</div>
+          <div style="background:#2a2a4e;border-radius:4px;padding:6px;margin-bottom:6px;color:#aaa;">🎓 Coach</div>
+          <div style="background:#2a2a4e;border-radius:4px;padding:6px;margin-bottom:6px;color:#aaa;">🌐 Langue</div>
+          <div style="background:#2a2a4e;border-radius:4px;padding:6px;margin-bottom:6px;color:#aaa;">📊 Niveau</div>
+          <div style="background:#3a3aff22;border-radius:4px;padding:6px;margin-bottom:6px;border:1px solid #4444ff;color:#aaaaff;font-size:10px;">📈 Stats</div>
+          <div style="background:#3a3aff22;border-radius:4px;padding:6px;border:1px solid #4444ff;color:#aaaaff;font-size:10px;">👤 Franck ▼</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;color:#555;font-size:10px;display:flex;align-items:center;justify-content:center;">
+          Chat area
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sidebar étendue</h3>
+      <p>Profil + Stats s'ajoutent dans la sidebar existante. Accès rapide, toujours visible. Profil switcher en bas.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;gap:6px;height:160px;font-size:11px;">
+        <div style="background:#1a1a2e;border-radius:6px;padding:8px;color:#aaa;display:flex;gap:8px;align-items:center;">
+          <span style="color:#fff;font-weight:bold;">Echo</span>
+          <span style="flex:1"></span>
+          <span style="background:#2a2a4e;padding:4px 10px;border-radius:4px;">💬 Session</span>
+          <span style="background:#3a3aff33;border:1px solid #4444ff;padding:4px 10px;border-radius:4px;color:#aaaaff;">📈 Dashboard</span>
+          <span style="background:#2a2a4e;padding:4px 10px;border-radius:4px;">⚙ Settings</span>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;color:#555;font-size:10px;display:flex;align-items:center;justify-content:center;">
+          Vue active (Session ou Dashboard)
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Navigation par onglets</h3>
+      <p>Header avec onglets : Session | Dashboard | Settings. Le dashboard prend toute la fenêtre quand actif.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;gap:8px;height:160px;font-size:11px;">
+        <div style="width:140px;background:#1a1a2e;border-radius:6px;padding:10px;color:#888;">
+          <div style="color:#fff;font-weight:bold;margin-bottom:8px;">Echo</div>
+          <div style="background:#2a2a4e;border-radius:4px;padding:6px;margin-bottom:6px;">🎓 Angela</div>
+          <div style="background:#2a2a4e;border-radius:4px;padding:6px;margin-bottom:20px;">📊 B1</div>
+          <div style="background:#3a3aff22;border-radius:4px;padding:6px;border:1px solid #4444ff;color:#aaaaff;font-size:10px;">👤 Franck ↗</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;color:#555;font-size:10px;">
+          <div style="color:#333;margin-bottom:8px;">Chat area</div>
+          <div style="position:relative;">
+            <div style="position:absolute;right:0;top:0;width:85%;height:120px;background:#1a1a2e;border-radius:6px;padding:8px;color:#888;font-size:9px;border:1px solid #333;">
+              <div style="color:#aaaaff;font-weight:bold;margin-bottom:4px;">📈 Dashboard — Franck</div>
+              <div style="color:#666;">Sessions: 24 · Erreurs: 47</div>
+              <div style="background:#2a2a2e;height:30px;border-radius:3px;margin-top:6px;display:flex;align-items:center;padding:0 6px;color:#555;">progression chart…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Fenêtre séparée (overlay)</h3>
+      <p>Bouton dans la sidebar ouvre le dashboard en overlay/panneau flottant, comme le Settings panel actuel.</p>
+    </div>
+  </div>
+
+</div>

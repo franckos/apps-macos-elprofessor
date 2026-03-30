@@ -1,0 +1,139 @@
+<h2>Dashboard — Layout proposé</h2>
+<p class="subtitle">Clique sur l'option qui te parle le plus</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0d0d1a;border-radius:8px;padding:12px;font-size:10px;color:#888;min-height:200px;">
+        <!-- Header profil -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #222;">
+          <span style="font-size:18px;">🧑</span>
+          <div>
+            <div style="color:#fff;font-weight:bold;font-size:12px;">Franck</div>
+            <div style="color:#666;">English · B1 · 24 sessions</div>
+          </div>
+          <div style="margin-left:auto;background:#1a2a1a;border:1px solid #2a4a2a;padding:3px 8px;border-radius:4px;color:#4a9a4a;">🔥 7j streak</div>
+        </div>
+        <!-- KPI row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;">
+            <div style="color:#4444ff;font-size:14px;font-weight:bold;">24</div>
+            <div style="color:#666;font-size:9px;">Sessions</div>
+          </div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;">
+            <div style="color:#ff6644;font-size:14px;font-weight:bold;">2.3</div>
+            <div style="color:#666;font-size:9px;">Erreurs/échange</div>
+          </div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;">
+            <div style="color:#44aa44;font-size:14px;font-weight:bold;">78%</div>
+            <div style="color:#666;font-size:9px;">Qualité moy.</div>
+          </div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;">
+            <div style="color:#ffaa44;font-size:14px;font-weight:bold;">3h12</div>
+            <div style="color:#666;font-size:9px;">Temps total</div>
+          </div>
+        </div>
+        <!-- Two columns -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <!-- Erreurs par type -->
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;">
+            <div style="color:#aaa;margin-bottom:6px;font-weight:bold;">Erreurs par type</div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div style="flex:1;color:#ccc;">Grammaire</div>
+                <div style="width:60px;background:#222;border-radius:3px;height:6px;overflow:hidden;"><div style="width:70%;height:100%;background:#ff6644;border-radius:3px;"></div></div>
+                <div style="color:#888;width:20px;text-align:right;">47</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div style="flex:1;color:#ccc;">Vocabulaire</div>
+                <div style="width:60px;background:#222;border-radius:3px;height:6px;overflow:hidden;"><div style="width:40%;height:100%;background:#ffaa44;border-radius:3px;"></div></div>
+                <div style="color:#888;width:20px;text-align:right;">28</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div style="flex:1;color:#ccc;">Temps verbaux</div>
+                <div style="width:60px;background:#222;border-radius:3px;height:6px;overflow:hidden;"><div style="width:55%;height:100%;background:#ff4488;border-radius:3px;"></div></div>
+                <div style="color:#888;width:20px;text-align:right;">37</div>
+              </div>
+            </div>
+          </div>
+          <!-- Lacunes systématiques -->
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;">
+            <div style="color:#aaa;margin-bottom:6px;font-weight:bold;">⚠ Lacunes récurrentes</div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <div style="background:#2a1a1a;border-left:3px solid #ff4444;padding:4px 6px;border-radius:2px;color:#ff8888;">Simple past ×12</div>
+              <div style="background:#2a1a1a;border-left:3px solid #ff6644;padding:4px 6px;border-radius:2px;color:#ffaa88;">Present perfect ×8</div>
+              <div style="background:#2a1a1a;border-left:3px solid #ffaa44;padding:4px 6px;border-radius:2px;color:#ffcc88;">Articles a/the ×6</div>
+            </div>
+          </div>
+          <!-- Progression (mini chart) -->
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;">
+            <div style="color:#aaa;margin-bottom:6px;font-weight:bold;">Progression (qualité)</div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:40px;">
+              <div style="flex:1;background:#4444ff44;border-radius:2px 2px 0 0;height:40%;"></div>
+              <div style="flex:1;background:#4444ff55;border-radius:2px 2px 0 0;height:50%;"></div>
+              <div style="flex:1;background:#4444ff66;border-radius:2px 2px 0 0;height:55%;"></div>
+              <div style="flex:1;background:#4444ff77;border-radius:2px 2px 0 0;height:60%;"></div>
+              <div style="flex:1;background:#4444ff88;border-radius:2px 2px 0 0;height:65%;"></div>
+              <div style="flex:1;background:#4444ff99;border-radius:2px 2px 0 0;height:72%;"></div>
+              <div style="flex:1;background:#4444ffaa;border-radius:2px 2px 0 0;height:78%;"></div>
+            </div>
+          </div>
+          <!-- Recommandations -->
+          <div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:5px;padding:8px;">
+            <div style="color:#4aaa4a;margin-bottom:6px;font-weight:bold;">💡 Recommandations</div>
+            <div style="color:#888;font-size:9px;margin-bottom:4px;">Basées sur tes lacunes</div>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <div style="background:#1a3a1a;border-radius:3px;padding:4px 6px;color:#8aaa8a;">📚 Simple past irrégulier</div>
+              <div style="background:#1a3a1a;border-radius:3px;padding:4px 6px;color:#8aaa8a;">🎯 Present perfect vs past</div>
+            </div>
+            <div style="margin-top:6px;background:#2a4a2a;border-radius:3px;padding:4px 6px;color:#4aaa4a;text-align:center;cursor:pointer;">🤖 Analyse IA →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Dashboard compact (tout sur un écran)</h3>
+      <p>KPIs en haut, 4 widgets en grille : erreurs par type, lacunes, progression, recommandations. Tout visible sans scroll.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0d0d1a;border-radius:8px;padding:12px;font-size:10px;color:#888;min-height:200px;">
+        <!-- Tabs dans le dashboard -->
+        <div style="display:flex;gap:4px;margin-bottom:10px;">
+          <div style="background:#4444ff22;border:1px solid #4444ff;border-radius:4px;padding:4px 10px;color:#aaaaff;">Vue globale</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px 10px;color:#666;">Erreurs</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px 10px;color:#666;">Sessions</div>
+          <div style="background:#1a1a2e;border-radius:4px;padding:4px 10px;color:#666;">Leçons</div>
+        </div>
+        <!-- Vue globale content -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;">
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;"><div style="color:#4444ff;font-size:14px;font-weight:bold;">24</div><div style="color:#666;font-size:9px;">Sessions</div></div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;"><div style="color:#ff6644;font-size:14px;font-weight:bold;">2.3</div><div style="color:#666;font-size:9px;">Erreurs/éch.</div></div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;"><div style="color:#44aa44;font-size:14px;font-weight:bold;">78%</div><div style="color:#666;font-size:9px;">Qualité</div></div>
+          <div style="background:#1a1a2e;border-radius:5px;padding:8px;text-align:center;"><div style="color:#ffaa44;font-size:14px;font-weight:bold;">🔥7j</div><div style="color:#666;font-size:9px;">Streak</div></div>
+        </div>
+        <div style="background:#1a1a2e;border-radius:5px;padding:8px;margin-bottom:8px;">
+          <div style="color:#aaa;margin-bottom:4px;font-weight:bold;">Progression qualité — 7 dernières sessions</div>
+          <div style="display:flex;align-items:flex-end;gap:4px;height:50px;">
+            <div style="flex:1;background:#4444ff44;border-radius:2px 2px 0 0;height:40%;"></div>
+            <div style="flex:1;background:#4444ff55;border-radius:2px 2px 0 0;height:52%;"></div>
+            <div style="flex:1;background:#4444ff66;border-radius:2px 2px 0 0;height:58%;"></div>
+            <div style="flex:1;background:#4444ff77;border-radius:2px 2px 0 0;height:63%;"></div>
+            <div style="flex:1;background:#4444ff88;border-radius:2px 2px 0 0;height:70%;"></div>
+            <div style="flex:1;background:#4444ff99;border-radius:2px 2px 0 0;height:75%;"></div>
+            <div style="flex:1;background:#4444ffcc;border-radius:2px 2px 0 0;height:78%;"></div>
+          </div>
+        </div>
+        <div style="color:#666;text-align:center;font-size:9px;">Onglets Erreurs / Sessions / Leçons pour le détail →</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Dashboard avec sous-onglets</h3>
+      <p>Vue globale + onglets internes : Erreurs (détail), Sessions (historique), Leçons (recommandations). Plus d'espace pour chaque section.</p>
+    </div>
+  </div>
+
+</div>

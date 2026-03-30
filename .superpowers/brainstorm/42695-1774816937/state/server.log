@@ -1,0 +1,10 @@
+{"type":"server-started","port":62884,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:62884","screen_dir":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content","state_dir":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/state"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/dashboard-placement.html"}
+{"source":"user-event","type":"click","text":"Echo\n          \n          💬 Session\n          📈 Dashboard\n          ⚙ Settings\n        \n        \n          Vue active (Session ou Dashboard)\n        \n      \n    \n    \n      B — Navigation par onglets\n      Header avec onglets : Session | Dashboard | Settings. Le dashboard prend toute la fenêtre quand actif.","choice":"b","id":null,"timestamp":1774817104126}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/waiting-1.html"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/profile-screen.html"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/waiting-2.html"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/dashboard-layout.html"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/profile-create.html"}
+{"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/42695-1774816937/content/waiting-3.html"}
+{"type":"server-stopped","reason":"idle timeout"}
