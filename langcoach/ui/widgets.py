@@ -321,8 +321,9 @@ class ToastNotification(QWidget):
     }
 
     def __init__(self, message: str, kind: str = "success", parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.ToolTip)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self._dismissed = False
 
         cfg = self._TYPES.get(kind, self._TYPES["info"])
@@ -422,9 +423,11 @@ class ToastNotification(QWidget):
             self._fade_out.start()
 
     def show_at(self, x: int, y: int):
+        """x, y sont des coordonnées écran (globales)."""
         self.move(x + 30, y)
         self.show()
         self.raise_()
+        self.activateWindow()
 
         self._slide = QPropertyAnimation(self, b"pos")
         self._slide.setDuration(220)

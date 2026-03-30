@@ -829,8 +829,11 @@ class MainWindow(QMainWindow):
         )
 
     def _show_toast(self, message: str, kind: str = "info"):
-        toast = ToastNotification(message, kind=kind, parent=self.centralWidget())
-        toast.show_at(self.width() - 340, 80)
+        toast = ToastNotification(message, kind=kind)
+        global_pos = self.mapToGlobal(
+            self.rect().topRight()
+        )
+        toast.show_at(global_pos.x() - 340, global_pos.y() + 16)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
