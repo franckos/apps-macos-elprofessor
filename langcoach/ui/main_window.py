@@ -56,8 +56,11 @@ from config.settings import (
     load_settings,
     save_settings,
 )
+from core.database import Database
+from core.stats_engine import StatsEngine
 from core.session import SessionManager, SessionState
 from ui.settings_panel import SettingsPanel
+from ui.dashboard_panel import DashboardPanel
 from ui.widgets import (
     StatusOrb,
     ChatBubble,
@@ -77,10 +80,13 @@ class MainWindow(QMainWindow):
     sig_models_ready = pyqtSignal(dict)
     sig_error = pyqtSignal(str)
 
-    def __init__(self):
+    def __init__(self, db: Database, profile: dict):
         super().__init__()
-        self.settings = load_settings()
+        self._db = db
+        self._profile = profile
+        self.settings = profile.get("settings", load_settings())
         self.session = SessionManager()
+        self._stats = StatsEngine(db=db, llm=None)  # llm injected after model init
         self._current_ai_bubble = None
         self._current_ai_text = ""
         self._settings_visible = False
@@ -168,24 +174,35 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Header
         header = self._build_header()
         main_layout.addWidget(header)
 
-        # Separator
         sep = QFrame()
         sep.setFixedHeight(1)
         sep.setStyleSheet(f"background-color: {T['border']}; border: none;")
         main_layout.addWidget(sep)
 
-        # Chat area
+        # Stacked widget: index 0 = Session, index 1 = Dashboard
+        self._main_stack = QStackedWidget()
+        self._main_stack.setStyleSheet(f"background-color: {T['bg_primary']};")
+
+        # Session tab (existing chat + input bar)
+        session_widget = QWidget()
+        session_widget.setStyleSheet(f"background-color: {T['bg_primary']};")
+        session_vlayout = QVBoxLayout(session_widget)
+        session_vlayout.setContentsMargins(0, 0, 0, 0)
+        session_vlayout.setSpacing(0)
         self._chat_scroll = self._build_chat_area()
-        main_layout.addWidget(self._chat_scroll, 1)
-
-        # Input bar
+        session_vlayout.addWidget(self._chat_scroll, 1)
         input_bar = self._build_input_bar()
-        main_layout.addWidget(input_bar)
+        session_vlayout.addWidget(input_bar)
+        self._main_stack.addWidget(session_widget)
 
+        # Dashboard tab
+        self._dashboard_panel = DashboardPanel(db=self._db, stats_engine=self._stats)
+        self._main_stack.addWidget(self._dashboard_panel)
+
+        main_layout.addWidget(self._main_stack, 1)
         root.addWidget(main_area, 1)
 
         # ── Settings panel (overlay) ───────────────────────────
@@ -329,35 +346,47 @@ class MainWindow(QMainWindow):
 
         layout = QHBoxLayout(header)
         layout.setContentsMargins(T["spacing_lg"], 0, T["spacing_lg"], 0)
-        layout.setSpacing(T["spacing_sm"])
+        layout.setSpacing(0)
 
-        # Session title
-        self._session_title = QLabel("New session")
-        self._session_title.setFont(QFont(T["font_display"], T["font_size_lg"]))
-        self._session_title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
-        layout.addWidget(self._session_title, 1)
-
-        # Header buttons
-        btn_style = f"""
+        self._tab_active_style = f"""
             QPushButton {{
-                background-color: {T['bg_card']};
-                color: {T['text_secondary']};
-                border: 1px solid {T['border']};
-                border-radius: {T['radius_md']}px;
-                padding: 8px 16px;
-                font-size: {T['font_size_sm']}px;
-                font-family: '{T['font_body']}';
-            }}
-            QPushButton:hover {{
-                background-color: {T['bg_hover']};
-                color: {T['text_primary']};
-                border-color: {T['accent']};
-            }}
-            QPushButton:pressed {{
-                background-color: {T['accent_soft']};
+                background-color: {T['bg_primary']}; color: {T['text_primary']};
+                border: none; border-bottom: 2px solid {T['accent']};
+                padding: 0 20px; font-size: {T['font_size_sm']}px; font-family: '{T['font_body']}';
             }}
         """
+        self._tab_inactive_style = f"""
+            QPushButton {{
+                background-color: transparent; color: {T['text_muted']};
+                border: none; border-bottom: 2px solid transparent;
+                padding: 0 20px; font-size: {T['font_size_sm']}px; font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{ color: {T['text_primary']}; }}
+        """
 
+        self._btn_tab_session = QPushButton("💬  Session")
+        self._btn_tab_session.setFixedHeight(64)
+        self._btn_tab_session.setStyleSheet(self._tab_active_style)
+        self._btn_tab_session.clicked.connect(lambda: self._switch_tab(0))
+        layout.addWidget(self._btn_tab_session)
+
+        self._btn_tab_dashboard = QPushButton("📈  Dashboard")
+        self._btn_tab_dashboard.setFixedHeight(64)
+        self._btn_tab_dashboard.setStyleSheet(self._tab_inactive_style)
+        self._btn_tab_dashboard.clicked.connect(lambda: self._switch_tab(1))
+        layout.addWidget(self._btn_tab_dashboard)
+
+        layout.addStretch()
+
+        btn_style = f"""
+            QPushButton {{
+                background-color: {T['bg_card']}; color: {T['text_secondary']};
+                border: 1px solid {T['border']}; border-radius: {T['radius_md']}px;
+                padding: 8px 16px; font-size: {T['font_size_sm']}px; font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; border-color: {T['accent']}; }}
+            QPushButton:pressed {{ background-color: {T['accent_soft']}; }}
+        """
         self._btn_reset = QPushButton("↺  New session")
         self._btn_reset.setStyleSheet(btn_style)
         self._btn_reset.setFixedHeight(36)
@@ -373,6 +402,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_settings)
 
         return header
+
+    def _switch_tab(self, index: int):
+        self._main_stack.setCurrentIndex(index)
+        if index == 0:
+            self._btn_tab_session.setStyleSheet(self._tab_active_style)
+            self._btn_tab_dashboard.setStyleSheet(self._tab_inactive_style)
+        else:
+            self._btn_tab_session.setStyleSheet(self._tab_inactive_style)
+            self._btn_tab_dashboard.setStyleSheet(self._tab_active_style)
+            self._dashboard_panel.refresh()
 
     def _build_chat_area(self) -> QScrollArea:
         scroll = QScrollArea()
@@ -523,7 +562,17 @@ class MainWindow(QMainWindow):
     def _start_session(self):
         self._update_sidebar_info()
         self._update_session_title()
-        self.session.initialize(self.settings)
+
+        # Inject LLM into stats engine once models are ready
+        original_on_models_ready = self.session.on_models_ready
+
+        def _on_models_ready_with_llm(status: dict):
+            self._stats._llm = self.session._llm
+            self.sig_models_ready.emit(status)
+
+        self.session.on_models_ready = _on_models_ready_with_llm
+        self.session.initialize(self.settings, profile=self._profile, stats=self._stats)
+        self._dashboard_panel.set_profile(self._profile)
 
     # ── Slot handlers ─────────────────────────────────────────
 
@@ -639,7 +688,8 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self, new_settings: dict):
         self.settings = new_settings
-        save_settings(new_settings)
+        self._db.update_profile_settings(self._profile["id"], new_settings)
+        self._profile["settings"] = new_settings
         self.session.update_settings(new_settings)
         self._update_sidebar_info()
         self._update_session_title()
@@ -672,7 +722,8 @@ class MainWindow(QMainWindow):
         lang = self.settings.get("target_language", "english").capitalize()
         level = self.settings.get("level", "B1")
         topic = self.settings.get("topic", "Free talk")
-        self._session_title.setText(f"{lang} · {level} · {topic}")
+        name = self._profile.get("name", "")
+        self.setWindowTitle(f"Echo — {name} · {lang} · {level} · {topic}")
 
     def _scroll_to_bottom(self):
         QTimer.singleShot(
@@ -691,7 +742,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.session.shutdown()
-        save_settings(self.settings)
         event.accept()
 
     def keyPressEvent(self, event):
