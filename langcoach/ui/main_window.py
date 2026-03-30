@@ -54,7 +54,6 @@ from config.settings import (
     NATIVE_LANGUAGES,
     COACHES,
     load_settings,
-    save_settings,
 )
 from core.database import Database
 from core.stats_engine import StatsEngine

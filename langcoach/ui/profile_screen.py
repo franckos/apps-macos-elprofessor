@@ -329,7 +329,28 @@ class ProfileWizard(QDialog):
             btn.setStyleSheet(self._pill(k == self._level))
 
     def _go_step3(self):
+        self._rebuild_coach_buttons()
         self._stack.setCurrentIndex(2)
+
+    def _rebuild_coach_buttons(self):
+        """Rebuild coach buttons for the currently selected language."""
+        coach_layout = self._coach_container.layout()
+        while coach_layout.count():
+            item = coach_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._coach_btns = {}
+        coaches = COACHES.get(self._language, COACHES["english"])
+        if self._coach not in coaches:
+            self._coach = next(iter(coaches))
+        for key, info in coaches.items():
+            btn = QPushButton(f"{info['flag']} {info['name']}")
+            btn.setCheckable(True)
+            btn.setFixedHeight(40)
+            btn.clicked.connect(lambda _, k=key: self._select_coach(k))
+            self._coach_btns[key] = btn
+            coach_layout.addWidget(btn)
+        self._update_coach_styles()
 
     # ── Step 3: Coach + Style ──────────────────────────────────
 
@@ -351,7 +372,10 @@ class ProfileWizard(QDialog):
         coach_lbl.setStyleSheet(f"color: {T['text_muted']};")
         layout.addWidget(coach_lbl)
 
-        coach_row = QHBoxLayout()
+        self._coach_container = QWidget()
+        self._coach_container.setStyleSheet("background: transparent;")
+        coach_row = QHBoxLayout(self._coach_container)
+        coach_row.setContentsMargins(0, 0, 0, 0)
         self._coach_btns: dict[str, QPushButton] = {}
         for key, info in COACHES.get(self._language, COACHES["english"]).items():
             btn = QPushButton(f"{info['flag']} {info['name']}")
@@ -361,7 +385,7 @@ class ProfileWizard(QDialog):
             self._coach_btns[key] = btn
             coach_row.addWidget(btn)
         self._update_coach_styles()
-        layout.addLayout(coach_row)
+        layout.addWidget(self._coach_container)
 
         style_lbl = QLabel("Style d'enseignement")
         style_lbl.setStyleSheet(f"color: {T['text_muted']};")
@@ -437,7 +461,7 @@ class ProfileWizard(QDialog):
             if i < 3:
                 line = QFrame()
                 line.setFixedSize(36, 2)
-                line.setStyleSheet(f"background: {'#4444ff' if i < current else T['border']};")
+                line.setStyleSheet(f"background: {T['accent'] if i < current else T['border']};")
                 row.addWidget(line)
         layout.addLayout(row)
 
