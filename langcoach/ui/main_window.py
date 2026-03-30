@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QStackedWidget,
     QGraphicsDropShadowEffect,
+    QMenu,
+    QDialog,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -60,6 +62,7 @@ from core.stats_engine import StatsEngine
 from core.session import SessionManager, SessionState
 from ui.settings_panel import SettingsPanel
 from ui.dashboard_panel import DashboardPanel
+from ui.profile_screen import ProfileEditDialog, ProfileScreen, ProfileWizard
 from ui.widgets import (
     StatusOrb,
     ChatBubble,
@@ -251,7 +254,7 @@ class MainWindow(QMainWindow):
         self._status_orb = StatusOrb()
         orb_row.addWidget(self._status_orb)
 
-        self._status_label = QLabel("Initializing…")
+        self._status_label = QLabel("Initialisation…")
         self._status_label.setFont(QFont(T["font_body"], T["font_size_sm"]))
         self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
         orb_row.addWidget(self._status_label, 1)
@@ -263,10 +266,10 @@ class MainWindow(QMainWindow):
         self._info_cards = {}
         infos = [
             ("coach", "🎓", "Coach", "Angela"),
-            ("language", "🌐", "Language", "English"),
-            ("level", "📊", "Level", "B1"),
+            ("language", "🌐", "Langue", "Anglais"),
+            ("level", "📊", "Niveau", "B1"),
             ("style", "🎭", "Style", "Bienveillant"),
-            ("topic", "💬", "Topic", "Free talk"),
+            ("topic", "💬", "Sujet", "Conversation libre"),
         ]
         for key, emoji, label, default in infos:
             card = self._make_info_card(emoji, label, default)
@@ -283,7 +286,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         # Model badges
-        self._model_badge = QLabel("● Offline models")
+        self._model_badge = QLabel("● Modèles hors ligne")
         self._model_badge.setFont(QFont(T["font_mono"], T["font_size_xs"]))
         self._model_badge.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
         self._model_badge.setWordWrap(True)
@@ -386,19 +389,28 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; border-color: {T['accent']}; }}
             QPushButton:pressed {{ background-color: {T['accent_soft']}; }}
         """
-        self._btn_reset = QPushButton("↺  New session")
+        self._btn_reset = QPushButton("↺  Nouvelle session")
         self._btn_reset.setStyleSheet(btn_style)
         self._btn_reset.setFixedHeight(36)
-        self._btn_reset.setToolTip("Reset conversation (R)")
+        self._btn_reset.setToolTip("Réinitialiser la conversation (R)")
         self._btn_reset.clicked.connect(self._on_reset)
         layout.addWidget(self._btn_reset)
 
-        self._btn_settings = QPushButton("⚙  Settings")
+        self._btn_settings = QPushButton("⚙  Paramètres")
         self._btn_settings.setStyleSheet(btn_style)
         self._btn_settings.setFixedHeight(36)
-        self._btn_settings.setToolTip("Open settings (S)")
+        self._btn_settings.setToolTip("Ouvrir les paramètres (S)")
         self._btn_settings.clicked.connect(self._toggle_settings)
         layout.addWidget(self._btn_settings)
+
+        layout.addSpacing(4)
+
+        self._btn_profile = QPushButton("")
+        self._btn_profile.setStyleSheet(btn_style)
+        self._btn_profile.setFixedHeight(36)
+        self._btn_profile.setToolTip("Profil")
+        self._btn_profile.clicked.connect(self._on_profile_menu)
+        layout.addWidget(self._btn_profile)
 
         return header
 
@@ -454,7 +466,7 @@ class MainWindow(QMainWindow):
 
         # VAD toggle
         self._btn_vad = AnimatedButton("◉  Auto")
-        self._btn_vad.setToolTip("Toggle auto-detect mode (A)")
+        self._btn_vad.setToolTip("Activer/désactiver la détection automatique (A)")
         self._btn_vad.setFixedSize(90, 44)
         self._btn_vad.setCheckable(True)
         self._btn_vad.clicked.connect(self._toggle_vad)
@@ -462,7 +474,7 @@ class MainWindow(QMainWindow):
 
         # Text input
         self._text_input = QLineEdit()
-        self._text_input.setPlaceholderText("Type a message or hold Space to talk…")
+        self._text_input.setPlaceholderText("Écris un message ou maintiens Espace pour parler…")
         self._text_input.setFixedHeight(44)
         self._text_input.setStyleSheet(
             f"""
@@ -495,8 +507,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_send)
 
         # PTT button
-        self._btn_ptt = AnimatedButton("🎤  Hold")
-        self._btn_ptt.setToolTip("Hold to talk (Space)")
+        self._btn_ptt = AnimatedButton("🎤  Parler")
+        self._btn_ptt.setToolTip("Maintenir pour parler (Espace)")
         self._btn_ptt.setFixedSize(100, 44)
         self._btn_ptt.pressed.connect(self._on_ptt_press)
         self._btn_ptt.released.connect(self._on_ptt_release)
@@ -505,7 +517,7 @@ class MainWindow(QMainWindow):
         # Stop button
         self._btn_stop = QPushButton("■")
         self._btn_stop.setFixedSize(44, 44)
-        self._btn_stop.setToolTip("Stop speaking (Esc)")
+        self._btn_stop.setToolTip("Arrêter la parole (Échap)")
         self._btn_stop.setStyleSheet(
             f"""
             QPushButton {{
@@ -536,14 +548,7 @@ class MainWindow(QMainWindow):
         self.sig_assistant_done.connect(self._handle_ai_done)
         self.sig_models_ready.connect(self._handle_models_ready)
         self.sig_error.connect(self._handle_error)
-
-        # Session callbacks → signals (thread-safe)
-        self.session.on_state_change = lambda s: self.sig_state_changed.emit(s)
-        self.session.on_user_transcript = lambda t: self.sig_user_transcript.emit(t)
-        self.session.on_assistant_token = lambda t: self.sig_assistant_token.emit(t)
-        self.session.on_assistant_done = lambda t: self.sig_assistant_done.emit(t)
-        self.session.on_models_ready = lambda s: self.sig_models_ready.emit(s)
-        self.session.on_error = lambda e: self.sig_error.emit(e)
+        self._connect_session_signals()
 
     def _setup_shortcuts(self):
         def _if_not_typing(action):
@@ -577,13 +582,13 @@ class MainWindow(QMainWindow):
 
     def _handle_state_change(self, state: SessionState):
         labels = {
-            SessionState.IDLE: ("Idle", T["text_muted"]),
-            SessionState.LOADING: ("Loading models…", T["warning"]),
-            SessionState.READY: ("Ready", T["success"]),
-            SessionState.LISTENING: ("Listening…", T["accent"]),
-            SessionState.PROCESSING: ("Thinking…", T["info"]),
-            SessionState.SPEAKING: ("Speaking…", T["accent"]),
-            SessionState.ERROR: ("Error", T["error"]),
+            SessionState.IDLE: ("Prêt", T["text_muted"]),
+            SessionState.LOADING: ("Chargement…", T["warning"]),
+            SessionState.READY: ("Prêt", T["success"]),
+            SessionState.LISTENING: ("Écoute…", T["accent"]),
+            SessionState.PROCESSING: ("Réflexion…", T["info"]),
+            SessionState.SPEAKING: ("Parole…", T["accent"]),
+            SessionState.ERROR: ("Erreur", T["error"]),
         }
         text, color = labels.get(state, ("Unknown", T["text_muted"]))
         self._status_label.setText(text)
@@ -632,12 +637,12 @@ class MainWindow(QMainWindow):
         self._scroll_to_bottom()
 
     def _handle_error(self, msg: str):
-        self._show_toast(f"Error: {msg}", kind="error")
+        self._show_toast(f"Erreur : {msg}", kind="error")
 
     def _toggle_vad(self, checked: bool):
         if checked:
             self.session.start_listening_vad()
-            self._btn_vad.setText("◉  Active")
+            self._btn_vad.setText("◉  Actif")
         else:
             self.session.stop_listening_vad()
             self._btn_vad.setText("◉  Auto")
@@ -668,7 +673,7 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
         self.session.reset_session()
-        self._show_toast("Session reset", kind="info")
+        self._show_toast("Session réinitialisée", kind="info")
 
     def _toggle_settings(self):
         self._settings_visible = not self._settings_visible
@@ -680,10 +685,10 @@ class MainWindow(QMainWindow):
             self._settings_panel.move(self.width() - 400, 0)
             self._settings_panel.raise_()
             self._settings_panel.show()
-            self._btn_settings.setText("✕  Close")
+            self._btn_settings.setText("✕  Fermer")
         else:
             self._settings_panel.hide()
-            self._btn_settings.setText("⚙  Settings")
+            self._btn_settings.setText("⚙  Paramètres")
 
     def _on_settings_changed(self, new_settings: dict):
         self.settings = new_settings
@@ -692,7 +697,7 @@ class MainWindow(QMainWindow):
         self.session.update_settings(new_settings)
         self._update_sidebar_info()
         self._update_session_title()
-        self._show_toast("Settings updated", kind="success")
+        self._show_toast("Paramètres mis à jour", kind="success")
 
     def _update_sidebar_info(self):
         lang_key = self.settings.get("target_language", "english")
@@ -722,7 +727,101 @@ class MainWindow(QMainWindow):
         level = self.settings.get("level", "B1")
         topic = self.settings.get("topic", "Free talk")
         name = self._profile.get("name", "")
+        avatar = self._profile.get("avatar", "🧑")
         self.setWindowTitle(f"Echo — {name} · {lang} · {level} · {topic}")
+        if hasattr(self, "_btn_profile"):
+            self._btn_profile.setText(f"{avatar}  {name}  ▾")
+
+    # ── Profile management ────────────────────────────────────
+
+    def _on_profile_menu(self):
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {T['bg_card']}; color: {T['text_primary']};
+                border: 1px solid {T['border']}; border-radius: {T['radius_md']}px;
+                padding: 4px 0;
+            }}
+            QMenu::item {{ padding: 10px 20px; }}
+            QMenu::item:selected {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; }}
+            QMenu::separator {{ height: 1px; background: {T['border']}; margin: 4px 12px; }}
+        """)
+        edit_action = menu.addAction(f"✏️  Modifier le profil")
+        menu.addSeparator()
+        switch_action = menu.addAction("🔄  Changer de profil")
+        new_action = menu.addAction("＋  Nouveau profil")
+
+        action = menu.exec(self._btn_profile.mapToGlobal(
+            self._btn_profile.rect().bottomLeft()
+        ))
+        if action == edit_action:
+            self._edit_profile()
+        elif action == switch_action:
+            self._switch_profile_screen()
+        elif action == new_action:
+            self._create_new_profile()
+
+    def _edit_profile(self):
+        dlg = ProfileEditDialog(self._db, self._profile, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._update_session_title()
+            self._show_toast("Profil mis à jour", kind="success")
+
+    def _switch_profile_screen(self):
+        profiles = self._db.list_profiles()
+        if len(profiles) <= 1:
+            self._show_toast("Aucun autre profil disponible", kind="info")
+            return
+        self.session.shutdown()
+        screen = ProfileScreen(self._db, parent=None)
+        if screen.exec() == QDialog.DialogCode.Accepted and screen.selected_profile:
+            self._reload_profile(screen.selected_profile)
+        else:
+            # Restart session with current profile
+            self._reload_profile(self._profile)
+
+    def _create_new_profile(self):
+        self.session.shutdown()
+        wizard = ProfileWizard(self._db, parent=None)
+        created_id = []
+        wizard.profile_created.connect(lambda pid: created_id.append(pid))
+        if wizard.exec() == QDialog.DialogCode.Accepted and created_id:
+            new_profile = self._db.get_profile(created_id[0])
+            if new_profile:
+                self._reload_profile(new_profile)
+                return
+        # Restart session with current profile if cancelled
+        self._reload_profile(self._profile)
+
+    def _reload_profile(self, new_profile: dict):
+        from config.settings import save_last_profile_id
+        from core.session import SessionManager
+        from core.stats_engine import StatsEngine
+
+        self._profile = new_profile
+        self.settings = new_profile.get("settings", self.settings)
+        save_last_profile_id(new_profile["id"])
+
+        # Clear chat
+        while self._chat_layout.count() > 1:
+            item = self._chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # New session + stats
+        self.session = SessionManager()
+        self._stats = StatsEngine(db=self._db, llm=None)
+        self._connect_session_signals()
+        self._start_session()
+        self._show_toast(f"Profil : {new_profile['name']}", kind="success")
+
+    def _connect_session_signals(self):
+        self.session.on_state_change = lambda s: self.sig_state_changed.emit(s)
+        self.session.on_user_transcript = lambda t: self.sig_user_transcript.emit(t)
+        self.session.on_assistant_token = lambda t: self.sig_assistant_token.emit(t)
+        self.session.on_assistant_done = lambda t: self.sig_assistant_done.emit(t)
+        self.session.on_models_ready = lambda s: self.sig_models_ready.emit(s)
+        self.session.on_error = lambda e: self.sig_error.emit(e)
 
     def _scroll_to_bottom(self):
         QTimer.singleShot(
@@ -731,7 +830,7 @@ class MainWindow(QMainWindow):
 
     def _show_toast(self, message: str, kind: str = "info"):
         toast = ToastNotification(message, kind=kind, parent=self.centralWidget())
-        toast.show_at(self.width() - 300, 80)
+        toast.show_at(self.width() - 340, 80)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

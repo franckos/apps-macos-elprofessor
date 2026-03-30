@@ -311,82 +311,101 @@ class WaveformWidget(QWidget):
 # ── Toast Notification ────────────────────────────────────────
 
 class ToastNotification(QWidget):
-    """Notification moderne — slide depuis la droite, fond coloré, haut à droite"""
+    """Notification moderne — bordure gauche colorée, icône cercle, titre + message + fermer."""
 
-    _STYLES = {
-        "success": {
-            "bg":     "#1A3D2B",
-            "border": "#2ECC71",
-            "icon":   "✓",
-            "icon_color": "#2ECC71",
-        },
-        "error": {
-            "bg":     "#3D1A1A",
-            "border": "#E74C3C",
-            "icon":   "✕",
-            "icon_color": "#E74C3C",
-        },
-        "warning": {
-            "bg":     "#3D2E1A",
-            "border": "#F39C12",
-            "icon":   "⚠",
-            "icon_color": "#F39C12",
-        },
-        "info": {
-            "bg":     "#1A2A3D",
-            "border": T["accent"],
-            "icon":   "ℹ",
-            "icon_color": T["accent"],
-        },
+    _TYPES = {
+        "success": {"title": "Succès",        "color": "#2ECC71", "icon": "✓", "auto_close": True},
+        "error":   {"title": "Erreur",         "color": "#E74C3C", "icon": "✕", "auto_close": False},
+        "warning": {"title": "Avertissement",  "color": "#F39C12", "icon": "!",  "auto_close": False},
+        "info":    {"title": "Info",           "color": T["accent"], "icon": "i", "auto_close": True},
     }
 
     def __init__(self, message: str, kind: str = "success", parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._dismissed = False
 
-        style = self._STYLES.get(kind, self._STYLES["info"])
+        cfg = self._TYPES.get(kind, self._TYPES["info"])
+        color = cfg["color"]
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(12)
-
-        # Icône
-        icon = QLabel(style["icon"])
-        icon.setFont(QFont(T["font_body"], T["font_size_md"]))
-        icon.setStyleSheet(f"color: {style['icon_color']}; background: transparent;")
-        icon.setFixedWidth(20)
-        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon)
-
-        # Message
-        label = QLabel(message)
-        label.setFont(QFont(T["font_body"], T["font_size_sm"]))
-        label.setStyleSheet("color: #FFFFFF; background: transparent;")
-        layout.addWidget(label, 1)
-
+        self.setFixedWidth(320)
+        self.setObjectName("toast")
         self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {style['bg']};
-                border: 1px solid {style['border']};
-                border-radius: 12px;
+            QWidget#toast {{
+                background: {T['bg_card']};
+                border-top: 1px solid {T['border']};
+                border-right: 1px solid {T['border']};
+                border-bottom: 1px solid {T['border']};
+                border-left: 4px solid {color};
+                border-radius: {T['radius_md']}px;
             }}
         """)
-        self.setFixedWidth(280)
-        self.adjustSize()
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(14, 14, 12, 14)
+        outer.setSpacing(12)
+
+        # Icône cercle coloré
+        icon_lbl = QLabel(cfg["icon"])
+        icon_lbl.setFixedSize(32, 32)
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        icon_lbl.setStyleSheet(f"""
+            color: {color};
+            background: transparent;
+            border: 2px solid {color};
+            border-radius: 16px;
+            font-weight: bold;
+        """)
+        outer.addWidget(icon_lbl)
+
+        # Titre + message
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+        text_col.setContentsMargins(0, 0, 0, 0)
+
+        title_lbl = QLabel(cfg["title"])
+        title_lbl.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        title_lbl.setStyleSheet(f"color: {T['text_primary']}; font-weight: bold; background: transparent;")
+        text_col.addWidget(title_lbl)
+
+        msg_lbl = QLabel(message)
+        msg_lbl.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        msg_lbl.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        msg_lbl.setWordWrap(True)
+        text_col.addWidget(msg_lbl)
+
+        outer.addLayout(text_col, 1)
+
+        # Bouton fermer
+        close_btn = QPushButton("×")
+        close_btn.setFixedSize(20, 20)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {T['text_muted']};
+                border: none;
+                font-size: 16px;
+                font-weight: bold;
+                padding: 0;
+            }}
+            QPushButton:hover {{ color: {T['text_primary']}; }}
+        """)
+        close_btn.clicked.connect(self._dismiss)
+        outer.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignTop)
 
         # Opacité
         self._opacity = QGraphicsOpacityEffect()
         self.setGraphicsEffect(self._opacity)
         self._opacity.setOpacity(0.0)
 
-        # Fade in
         self._fade_in = QPropertyAnimation(self._opacity, b"opacity")
         self._fade_in.setDuration(180)
         self._fade_in.setStartValue(0.0)
         self._fade_in.setEndValue(1.0)
         self._fade_in.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-        # Fade out
         self._fade_out = QPropertyAnimation(self._opacity, b"opacity")
         self._fade_out.setDuration(250)
         self._fade_out.setStartValue(1.0)
@@ -394,13 +413,19 @@ class ToastNotification(QWidget):
         self._fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
         self._fade_out.finished.connect(self.close)
 
+        if cfg["auto_close"]:
+            QTimer.singleShot(4000, self._dismiss)
+
+    def _dismiss(self):
+        if not self._dismissed:
+            self._dismissed = True
+            self._fade_out.start()
+
     def show_at(self, x: int, y: int):
-        # Slide depuis la droite (départ +30px à droite)
         self.move(x + 30, y)
         self.show()
         self.raise_()
 
-        # Slide vers la position finale
         self._slide = QPropertyAnimation(self, b"pos")
         self._slide.setDuration(220)
         self._slide.setStartValue(QPoint(x + 30, y))
@@ -409,4 +434,3 @@ class ToastNotification(QWidget):
         self._slide.start()
 
         self._fade_in.start()
-        QTimer.singleShot(2800, self._fade_out.start)

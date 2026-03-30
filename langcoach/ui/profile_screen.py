@@ -139,6 +139,106 @@ class ProfileScreen(QDialog):
         return self._selected_profile
 
 
+class ProfileEditDialog(QDialog):
+    """Dialog to rename / change avatar of an existing profile."""
+
+    def __init__(self, db: Database, profile: dict, parent=None):
+        super().__init__(parent)
+        self._db = db
+        self._profile = profile
+        self._avatar = profile.get("avatar", "🧑")
+
+        self.setModal(True)
+        self.setWindowTitle("Modifier le profil")
+        self.resize(380, 300)
+        self.setStyleSheet(f"background-color: {T['bg_primary']}; color: {T['text_primary']};")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 28, 32, 28)
+        layout.setSpacing(16)
+
+        title = QLabel("Modifier le profil")
+        title.setFont(QFont(T["font_display"], T["font_size_lg"]))
+        title.setStyleSheet(f"color: {T['text_primary']};")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        self._name_input = QLineEdit(profile["name"])
+        self._name_input.setFixedHeight(44)
+        self._name_input.setFont(QFont(T["font_body"], T["font_size_md"]))
+        self._name_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._name_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {T['bg_card']}; color: {T['text_primary']};
+                border: 1px solid {T['border']}; border-radius: {T['radius_md']}px; padding: 8px 16px;
+            }}
+            QLineEdit:focus {{ border-color: {T['accent']}; }}
+        """)
+        layout.addWidget(self._name_input)
+
+        avatar_lbl = QLabel("Avatar")
+        avatar_lbl.setStyleSheet(f"color: {T['text_muted']};")
+        layout.addWidget(avatar_lbl)
+
+        avatar_row = QHBoxLayout()
+        avatar_row.setSpacing(8)
+        self._avatar_btns: list[QPushButton] = []
+        for emoji in _AVATARS[:6]:
+            btn = QPushButton(emoji)
+            btn.setFixedSize(48, 48)
+            btn.setFont(QFont(T["font_body"], 18))
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda _, e=emoji: self._select_avatar(e))
+            self._avatar_btns.append(btn)
+            avatar_row.addWidget(btn)
+        self._update_avatar_styles()
+        layout.addLayout(avatar_row)
+
+        layout.addStretch()
+
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("Annuler")
+        cancel_btn.setFixedHeight(44)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{ background:{T['bg_card']}; color:{T['text_secondary']}; border:1px solid {T['border']}; border-radius:{T['radius_md']}px; }}
+            QPushButton:hover {{ background:{T['bg_hover']}; }}
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(cancel_btn)
+
+        save_btn = QPushButton("Enregistrer")
+        save_btn.setFixedHeight(44)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{ background:{T['accent']}; color:white; border:none; border-radius:{T['radius_md']}px; font-weight:bold; }}
+            QPushButton:hover {{ background:#5555ff; }}
+        """)
+        save_btn.clicked.connect(self._save)
+        btn_row.addWidget(save_btn, 2)
+        layout.addLayout(btn_row)
+
+    def _select_avatar(self, emoji: str):
+        self._avatar = emoji
+        self._update_avatar_styles()
+
+    def _update_avatar_styles(self):
+        for btn in self._avatar_btns:
+            selected = btn.text() == self._avatar
+            if selected:
+                btn.setStyleSheet(f"QPushButton {{ background:#2a2a4e; color:{T['accent']}; border:2px solid {T['accent']}; border-radius:{T['radius_sm']}px; }}")
+            else:
+                btn.setStyleSheet(f"QPushButton {{ background:{T['bg_card']}; color:{T['text_secondary']}; border:1px solid {T['border']}; border-radius:{T['radius_sm']}px; }} QPushButton:hover {{ border-color:{T['accent']}; }}")
+
+    def _save(self):
+        name = self._name_input.text().strip()
+        if not name:
+            self._name_input.setFocus()
+            return
+        self._db.update_profile(self._profile["id"], name, self._avatar)
+        self._profile["name"] = name
+        self._profile["avatar"] = self._avatar
+        self.accept()
+
+
 class ProfileWizard(QDialog):
     """3-step profile creation: Step 1 Name+Avatar, Step 2 Language+Level, Step 3 Coach+Style."""
 

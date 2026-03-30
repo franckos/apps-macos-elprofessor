@@ -186,6 +186,52 @@ class LLMEngine:
                 on_done(msg)
             return msg
 
+    def chat_oneshot(self, system_prompt: str, user_message: str) -> Optional[str]:
+        """Appel ponctuel sans modifier l'historique de conversation."""
+        if self.provider == "ollama":
+            return self._oneshot_ollama(system_prompt, user_message)
+        elif self.provider == "mistral_api":
+            return self._oneshot_mistral(system_prompt, user_message)
+        return None
+
+    def _oneshot_ollama(self, system_prompt: str, user_message: str) -> Optional[str]:
+        try:
+            import ollama
+            response = ollama.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                options={"temperature": 0.3, "num_predict": 120},
+            )
+            return response["message"]["content"].strip()
+        except Exception as e:
+            logger.error(f"Oneshot Ollama error: {e}")
+            return None
+
+    def _oneshot_mistral(self, system_prompt: str, user_message: str) -> Optional[str]:
+        try:
+            from mistralai import Mistral
+            import os
+            api_key = os.environ.get("MISTRAL_API_KEY", "")
+            if not api_key:
+                return None
+            client = Mistral(api_key=api_key)
+            response = client.chat.complete(
+                model="mistral-small-latest",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.3,
+                max_tokens=120,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Oneshot Mistral error: {e}")
+            return None
+
     def get_history_length(self) -> int:
         return len(self._conversation_history)
 

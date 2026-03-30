@@ -117,6 +117,14 @@ class StatsEngine:
             )
         self._exchange_count += 1
         self._error_count += len(errors)
+        # Auto-titre après le 1er vrai échange
+        if self._exchange_count == 1 and self._llm and self._session_id:
+            sid = self._session_id
+            threading.Thread(
+                target=self._generate_title_async,
+                args=(sid, user_text, ai_response),
+                daemon=True,
+            ).start()
 
     @staticmethod
     def parse_errors(ai_response: str) -> list:
@@ -130,6 +138,71 @@ class StatsEngine:
                 "rule":       m.group(4).strip().lower(),
             })
         return results
+
+    def _generate_title_async(self, session_id: str, user_text: str, ai_response: str):
+        try:
+            system = "Tu génères des titres courts et descriptifs en français pour des séances de langue."
+            user = (
+                f"Génère un titre court (4 à 6 mots maximum) en français résumant cette conversation.\n"
+                f"Message de l'apprenant : \"{user_text[:200]}\"\n"
+                f"Réponse du coach : \"{ai_response[:200]}\"\n"
+                f"Réponds UNIQUEMENT avec le titre, sans ponctuation finale, sans guillemets."
+            )
+            title = self._llm.chat_oneshot(system, user)
+            if title:
+                title = title.strip().strip('"\'').strip()[:80]
+                self._db.update_session_title(session_id, title)
+                logger.info(f"Titre de session généré : {title}")
+        except Exception as e:
+            logger.warning(f"Génération du titre échouée : {e}")
+
+    def analyze_session_by_id(self, session_id: str, on_done):
+        """Analyse à la demande d'une session spécifique. Appelle on_done(score, summary)."""
+        if not self._llm:
+            on_done(None, "LLM non disponible.")
+            return
+
+        def run():
+            try:
+                session = self._db.get_session(session_id)
+                if not session:
+                    on_done(None, "Session introuvable.")
+                    return
+                exchanges = self._db.get_session_exchanges(session_id)
+                if not exchanges:
+                    on_done(None, "Aucun échange à analyser.")
+                    return
+                convo = "\n".join(
+                    f"Apprenant : {e['user_text']}\nCoach : {e['ai_response'][:200]}"
+                    for e in exchanges[:10]
+                )
+                prompt = (
+                    f"Analyse cette séance d'apprentissage. Réponds UNIQUEMENT avec un objet JSON valide.\n\n"
+                    f"Séance :\n"
+                    f"- Langue : {session['language']} ({session['level']})\n"
+                    f"- Sujet : {session['topic']}\n"
+                    f"- Échanges : {session['exchange_count']}\n"
+                    f"- Erreurs : {session['error_count']}\n\n"
+                    f"Résumé de la conversation :\n{convo[:1200]}\n\n"
+                    f"Réponds avec UNIQUEMENT ce JSON (pas d'autre texte) :\n"
+                    f'{{\"quality_score\": 0.75, \"summary\": \"2-3 phrases en français sur la qualité et les points à améliorer.\"}}\n\n'
+                    f"quality_score : de 0.0 (très mauvais) à 1.0 (excellent). summary : en français, bienveillant."
+                )
+                response = self._llm.chat_oneshot(
+                    "Tu es un coach de langue qui analyse des séances. Réponds toujours en JSON valide.",
+                    prompt,
+                )
+                if response:
+                    score, summary = self._parse_analysis_response(response)
+                    self._db.update_session_summary(session_id, score, summary)
+                    on_done(score, summary)
+                else:
+                    on_done(None, "Analyse non disponible.")
+            except Exception as e:
+                logger.error(f"Analyse à la demande échouée : {e}")
+                on_done(None, f"Erreur : {e}")
+
+        threading.Thread(target=run, daemon=True).start()
 
     def end_session(self):
         if not self._session_id:

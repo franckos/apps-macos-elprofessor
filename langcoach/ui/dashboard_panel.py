@@ -8,7 +8,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QTabWidget, QTextEdit,
+    QScrollArea, QFrame, QTabWidget, QTextEdit, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QPainter, QColor, QBrush
@@ -384,12 +384,30 @@ class DashboardPanel(QWidget):
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(4)
 
-        top = QHBoxLayout()
         ts = s.get("started_at", 0) / 1000
-        date_lbl = QLabel(datetime.datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M"))
-        date_lbl.setFont(QFont(T["font_body"], T["font_size_sm"]))
-        date_lbl.setStyleSheet(f"color:{T['text_primary']}; border:none;")
-        top.addWidget(date_lbl)
+        date_str = datetime.datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M")
+
+        top = QHBoxLayout()
+
+        # Titre auto-généré ou date brute
+        title_text = s.get("title") or date_str
+        title_lbl = QLabel(title_text)
+        title_lbl.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        title_lbl.setStyleSheet(
+            f"color:{T['text_primary']}; border:none; font-weight:bold;"
+            if s.get("title") else
+            f"color:{T['text_primary']}; border:none;"
+        )
+        top.addWidget(title_lbl)
+
+        # Date en secondaire si on a un titre
+        if s.get("title"):
+            date_sec = QLabel(date_str)
+            date_sec.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+            date_sec.setStyleSheet(f"color:{T['text_muted']}; border:none;")
+            top.addWidget(date_sec)
+
+        top.addStretch()
 
         q = s.get("quality_score")
         if q is not None:
@@ -399,22 +417,84 @@ class DashboardPanel(QWidget):
             ql.setFont(QFont(T["font_mono"], T["font_size_sm"]))
             ql.setStyleSheet(f"color:{qc}; border:none;")
             top.addWidget(ql)
+
+        # Bouton Analyser si pas encore de résumé et au moins un échange
+        if not s.get("summary") and s.get("exchange_count", 0) > 0:
+            analyse_btn = QPushButton("🤖 Analyser")
+            analyse_btn.setFixedHeight(26)
+            analyse_btn.setStyleSheet(f"""
+                QPushButton {{ background:#1a2a1a; color:#4aaa4a; border:1px solid #2a4a2a;
+                    border-radius:{T['radius_sm']}px; padding:0 10px; font-size:{T['font_size_xs']}px; }}
+                QPushButton:hover {{ background:#2a3a2a; }}
+                QPushButton:disabled {{ color:{T['text_muted']}; border-color:{T['border']}; }}
+            """)
+            sid = s["id"]
+            analyse_btn.clicked.connect(
+                lambda _, sid=sid, btn=analyse_btn, lay=layout: self._analyse_session(sid, btn, lay)
+            )
+            top.addWidget(analyse_btn)
+
+        # Bouton supprimer
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(26, 26)
+        del_btn.setToolTip("Supprimer cette session")
+        del_btn.setStyleSheet(f"""
+            QPushButton {{ background:transparent; color:{T['text_muted']}; border:none;
+                border-radius:{T['radius_sm']}px; font-size:{T['font_size_sm']}px; }}
+            QPushButton:hover {{ color:{T['error']}; background:#2a1a1a; }}
+        """)
+        sid = s["id"]
+        del_btn.clicked.connect(
+            lambda _, sid=sid, card=w: self._delete_session(sid, card)
+        )
+        top.addWidget(del_btn)
+
         layout.addLayout(top)
 
-        meta = QLabel(f"{s['language'].capitalize()} · {s['level']} · {s['topic']}  |  {s['exchange_count']} échanges · {s['error_count']} erreurs")
+        meta = QLabel(
+            f"{s['language'].capitalize()} · {s['level']} · {s['topic']}  |  "
+            f"{s['exchange_count']} échanges · {s['error_count']} erreurs"
+        )
         meta.setFont(QFont(T["font_body"], T["font_size_xs"]))
         meta.setStyleSheet(f"color:{T['text_muted']}; border:none;")
         meta.setWordWrap(True)
         layout.addWidget(meta)
 
         if s.get("summary"):
-            summary = QLabel(s["summary"])
-            summary.setFont(QFont(T["font_body"], T["font_size_xs"]))
-            summary.setStyleSheet(f"color:{T['text_secondary']}; border:none;")
-            summary.setWordWrap(True)
-            layout.addWidget(summary)
+            summary_lbl = QLabel(s["summary"])
+            summary_lbl.setFont(QFont(T["font_body"], T["font_size_xs"]))
+            summary_lbl.setStyleSheet(f"color:{T['text_secondary']}; border:none;")
+            summary_lbl.setWordWrap(True)
+            layout.addWidget(summary_lbl)
 
         return w
+
+    def _analyse_session(self, session_id: str, btn: QPushButton, layout: QVBoxLayout):
+        if not self._stats:
+            return
+        btn.setEnabled(False)
+        btn.setText("⏳ Analyse…")
+
+        def on_done(score, summary):
+            def update_ui():
+                if self._profile:
+                    self._refresh_sessions(self._profile["id"])
+            QTimer.singleShot(0, update_ui)
+
+        self._stats.analyze_session_by_id(session_id, on_done)
+
+    def _delete_session(self, session_id: str, card: QWidget):
+        reply = QMessageBox.question(
+            self,
+            "Supprimer la session",
+            "Supprimer définitivement cette session et tous ses échanges ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._db.delete_session(session_id)
+            card.setVisible(False)
+            card.deleteLater()
 
     def _refresh_lessons(self, profile_id: str):
         self._clear(self._lesson_cards_layout)

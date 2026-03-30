@@ -89,6 +89,16 @@ class Database:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+        self._migrate_schema()
+
+    def _migrate_schema(self):
+        """Ajoute les colonnes manquantes pour les anciennes bases de données."""
+        cursor = self._conn.execute("PRAGMA table_info(sessions)")
+        columns = {row["name"] for row in cursor.fetchall()}
+        if "title" not in columns:
+            self._conn.execute("ALTER TABLE sessions ADD COLUMN title TEXT")
+            self._conn.commit()
+            logger.info("Migration DB : colonne sessions.title ajoutée")
 
     # ── Profiles ──────────────────────────────────────────────
 
@@ -113,6 +123,33 @@ class Database:
             "SELECT * FROM profiles ORDER BY last_used DESC"
         ).fetchall()
         return [self._profile_dict(r) for r in rows]
+
+    def update_session_title(self, session_id: str, title: str):
+        self._conn.execute(
+            "UPDATE sessions SET title=? WHERE id=?", (title, session_id)
+        )
+        self._conn.commit()
+
+    def get_session_exchanges(self, session_id: str) -> list:
+        rows = self._conn.execute(
+            "SELECT user_text, ai_response FROM exchanges WHERE session_id=? ORDER BY timestamp ASC",
+            (session_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def update_session_summary(self, session_id: str, quality_score: float, summary: str):
+        self._conn.execute(
+            "UPDATE sessions SET quality_score=?, summary=? WHERE id=?",
+            (quality_score, summary, session_id),
+        )
+        self._conn.commit()
+
+    def update_profile(self, profile_id: str, name: str, avatar: str):
+        self._conn.execute(
+            "UPDATE profiles SET name=?, avatar=? WHERE id=?",
+            (name, avatar, profile_id),
+        )
+        self._conn.commit()
 
     def update_profile_settings(self, profile_id: str, settings: dict):
         self._conn.execute(
@@ -162,6 +199,13 @@ class Database:
             (profile_id, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def delete_session(self, session_id: str):
+        """Supprime une session et toutes ses données (échanges, erreurs)."""
+        self._conn.execute("DELETE FROM errors WHERE session_id=?", (session_id,))
+        self._conn.execute("DELETE FROM exchanges WHERE session_id=?", (session_id,))
+        self._conn.execute("DELETE FROM sessions WHERE id=?", (session_id,))
+        self._conn.commit()
 
     # ── Exchanges ─────────────────────────────────────────────
 
