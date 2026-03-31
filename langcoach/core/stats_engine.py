@@ -92,6 +92,10 @@ class StatsEngine:
         self._session_id: Optional[str] = None
         self._exchange_count = 0
         self._error_count = 0
+        self._memory_manager = None
+
+    def set_memory_manager(self, memory_manager):
+        self._memory_manager = memory_manager
 
     def start_session(self, profile: dict, language: str, level: str, topic: str) -> str:
         self._profile = profile
@@ -204,23 +208,82 @@ class StatsEngine:
 
         threading.Thread(target=run, daemon=True).start()
 
-    def end_session(self):
+    def end_session(self, on_memory_suggestions=None):
         if not self._session_id:
             return
         session_id = self._session_id   # capture before reset
         exchange_count = self._exchange_count
+        profile = self._profile
         self._db.close_session(session_id, quality_score=None, summary=None)
         # Launch background LLM analysis if enough data
-        if exchange_count >= 3 and self._llm and self._profile:
+        if exchange_count >= 3 and self._llm and profile:
             t = threading.Thread(
                 target=self._analyze_session_async,
                 args=(session_id,),
                 daemon=True,
             )
             t.start()
+        if self._memory_manager:
+            exchanges = self._db.get_session_exchanges(session_id)
+            self._memory_manager.extract_suggestions_async(
+                profile["id"], session_id, exchanges,
+                on_done=on_memory_suggestions,
+            )
         self._session_id = None
         self._exchange_count = 0
         self._error_count = 0
+
+    def analyze_and_extract_async(self, on_done):
+        """Used by 'Finir et Analyser' button. Calls on_done(score, summary, suggestion_count)."""
+        if not self._session_id:
+            on_done(None, "Aucune session en cours.", 0)
+            return
+
+        session_id = self._session_id
+        profile = self._profile
+        exchange_count = self._exchange_count
+
+        # Close the session
+        self._db.close_session(session_id, quality_score=None, summary=None)
+        self._session_id = None
+        self._exchange_count = 0
+        self._error_count = 0
+
+        if not self._llm or not profile:
+            on_done(None, "LLM non disponible.", 0)
+            return
+
+        suggestion_count_holder = [0]
+        analysis_result = [None, None]
+        done_events = [False, False]  # [analysis_done, extraction_done]
+
+        def _check_both_done():
+            if all(done_events):
+                score, summary = analysis_result
+                on_done(score, summary, suggestion_count_holder[0])
+
+        def _on_analysis(score, summary):
+            analysis_result[0] = score
+            analysis_result[1] = summary
+            done_events[0] = True
+            _check_both_done()
+
+        def _on_extraction(count):
+            suggestion_count_holder[0] = count
+            done_events[1] = True
+            _check_both_done()
+
+        self.analyze_session_by_id(session_id, _on_analysis)
+
+        if self._memory_manager and exchange_count >= 3:
+            exchanges = self._db.get_session_exchanges(session_id)
+            self._memory_manager.extract_suggestions_async(
+                profile["id"], session_id, exchanges,
+                on_done=_on_extraction,
+            )
+        else:
+            done_events[1] = True
+            _check_both_done()
 
     def _analyze_session_async(self, session_id: str):
         session = self._db.get_session(session_id)
