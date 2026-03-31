@@ -103,4 +103,6 @@ def test_accept_memory_suggestion(db, profile, session):
 def test_delete_profile_cascades_memories(db, profile):
     db.create_memory(profile["id"], "Mémoire", ["perso"])
     db.delete_profile(profile["id"])
-    # No crash expected
+    # Profile gone — memory should be cascade-deleted
+    # list_memories by that profile_id should return 0 rows
+    assert db.list_memories(profile["id"]) == []
