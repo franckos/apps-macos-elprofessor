@@ -35,6 +35,16 @@ def test_compare_patch():
 def test_compare_major():
     assert compare_versions("1.9.9", "2.0.0") is True
 
+def test_compare_versions_empty_latest():
+    assert compare_versions("1.0.0", "") is False
+
+def test_compare_versions_two_parts():
+    assert compare_versions("1.0.0", "1.0.1") is True  # still works with short versions
+
+def test_compare_versions_prerelease_tag():
+    # "1.0.0-beta" — the "-beta" part would cause ValueError without the guard
+    assert compare_versions("1.0.0", "1.0.0-beta") is False
+
 
 # ── get_local_version ─────────────────────────────────────────
 

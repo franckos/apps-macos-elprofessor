@@ -584,13 +584,11 @@ class SettingsPanel(QWidget):
             status_label.setText("")
             update_btn.setVisible(False)
 
-            # Run in background thread to avoid blocking UI
             import threading
-            def _check():
-                info = fetch_latest_release()
-                # Schedule UI update on main thread via a single-shot QTimer
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: _update_ui(info))
+            from PyQt6.QtCore import QObject, pyqtSignal
+
+            class _Checker(QObject):
+                finished = pyqtSignal(object)
 
             def _update_ui(info):
                 self._check_in_progress = False
@@ -608,6 +606,17 @@ class SettingsPanel(QWidget):
                     status_label.setText(f"Vous avez la dernière version ({info.local_version}).")
                     status_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
 
+            checker = _Checker()
+            checker.finished.connect(_update_ui)
+
+            def _check():
+                try:
+                    info = fetch_latest_release()
+                except Exception:
+                    info = None
+                checker.finished.emit(info)
+
+            self._checker = checker  # keep reference alive
             threading.Thread(target=_check, daemon=True).start()
 
         def on_update():

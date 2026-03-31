@@ -42,9 +42,12 @@ def get_local_version(path: Optional[Path] = None) -> str:
 
 
 def compare_versions(local: str, latest: str) -> bool:
-    """Return True if latest > local (semver, integers only)."""
+    """Return True if latest > local (semver, integers only). Returns False on malformed input."""
     def parts(v: str):
-        return tuple(int(x) for x in v.split(".")[:3])
+        try:
+            return tuple(int(x) for x in v.split(".")[:3])
+        except (ValueError, AttributeError):
+            return (0, 0, 0)
     return parts(latest) > parts(local)
 
 
