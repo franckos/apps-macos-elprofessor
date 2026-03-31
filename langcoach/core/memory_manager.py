@@ -170,15 +170,15 @@ class MemoryManager:
                 on_done(count)
         except Exception as e:
             logger.error(f"Memory extraction failed: {e}")
+            if on_done:
+                on_done(0)
 
     def _parse_suggestions(self, text: str) -> list:
         """Extracts JSON array from LLM response (tolerant of surrounding text)."""
         try:
-            # Find the first '[' and last ']' to get the outermost array
-            start = text.find('[')
-            end = text.rfind(']')
-            if start != -1 and end != -1 and end > start:
-                return json.loads(text[start:end + 1])
+            match = re.search(r'\[.*\]', text, re.DOTALL)
+            if match:
+                return json.loads(match.group())
         except (json.JSONDecodeError, ValueError):
             pass
         return []
