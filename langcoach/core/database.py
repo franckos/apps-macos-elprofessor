@@ -73,6 +73,29 @@ CREATE TABLE IF NOT EXISTS error_patterns (
 CREATE INDEX IF NOT EXISTS idx_sessions_profile ON sessions(profile_id);
 CREATE INDEX IF NOT EXISTS idx_errors_profile   ON errors(profile_id);
 CREATE INDEX IF NOT EXISTS idx_errors_session   ON errors(session_id);
+
+CREATE TABLE IF NOT EXISTS memories (
+    id          TEXT PRIMARY KEY,
+    profile_id  TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    content     TEXT NOT NULL,
+    tags        TEXT NOT NULL DEFAULT '[]',
+    source      TEXT NOT NULL DEFAULT 'manual',
+    weight      REAL NOT NULL DEFAULT 1.0,
+    last_used   INTEGER,
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_suggestions (
+    id          TEXT PRIMARY KEY,
+    profile_id  TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    content     TEXT NOT NULL,
+    tags        TEXT NOT NULL DEFAULT '[]',
+    created_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_profile    ON memories(profile_id);
+CREATE INDEX IF NOT EXISTS idx_suggestions_profile ON memory_suggestions(profile_id);
 """
 
 
@@ -99,6 +122,31 @@ class Database:
             self._conn.execute("ALTER TABLE sessions ADD COLUMN title TEXT")
             self._conn.commit()
             logger.info("Migration DB : colonne sessions.title ajoutée")
+
+        # Ensure memory tables exist (for DBs created before this feature)
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS memories (
+                id          TEXT PRIMARY KEY,
+                profile_id  TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                content     TEXT NOT NULL,
+                tags        TEXT NOT NULL DEFAULT '[]',
+                source      TEXT NOT NULL DEFAULT 'manual',
+                weight      REAL NOT NULL DEFAULT 1.0,
+                last_used   INTEGER,
+                created_at  INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS memory_suggestions (
+                id          TEXT PRIMARY KEY,
+                profile_id  TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                content     TEXT NOT NULL,
+                tags        TEXT NOT NULL DEFAULT '[]',
+                created_at  INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_memories_profile    ON memories(profile_id);
+            CREATE INDEX IF NOT EXISTS idx_suggestions_profile ON memory_suggestions(profile_id);
+        """)
+        self._conn.commit()
 
     # ── Profiles ──────────────────────────────────────────────
 
@@ -162,6 +210,10 @@ class Database:
         self._conn.execute(
             "UPDATE profiles SET last_used = ? WHERE id = ?", (_ms(), profile_id)
         )
+        self._conn.commit()
+
+    def delete_profile(self, profile_id: str):
+        self._conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
         self._conn.commit()
 
     def _profile_dict(self, row) -> dict:
@@ -306,6 +358,108 @@ class Database:
             else:
                 break
         return streak
+
+    # ── Memories ──────────────────────────────────────────────
+
+    def create_memory(self, profile_id: str, content: str, tags: list,
+                      source: str = "manual") -> dict:
+        mid = str(uuid.uuid4())
+        now = _ms()
+        self._conn.execute(
+            "INSERT INTO memories (id, profile_id, content, tags, source, weight, last_used, created_at) "
+            "VALUES (?,?,?,?,?,1.0,NULL,?)",
+            (mid, profile_id, content[:120], json.dumps(tags), source, now),
+        )
+        self._conn.commit()
+        return self._memory_dict(
+            self._conn.execute("SELECT * FROM memories WHERE id=?", (mid,)).fetchone()
+        )
+
+    def list_memories(self, profile_id: str) -> list:
+        rows = self._conn.execute(
+            "SELECT * FROM memories WHERE profile_id=? ORDER BY weight DESC, created_at DESC",
+            (profile_id,),
+        ).fetchall()
+        return [self._memory_dict(r) for r in rows]
+
+    def update_memory(self, memory_id: str, content: str = None, tags: list = None):
+        if content is not None:
+            self._conn.execute(
+                "UPDATE memories SET content=? WHERE id=?", (content[:120], memory_id)
+            )
+        if tags is not None:
+            self._conn.execute(
+                "UPDATE memories SET tags=? WHERE id=?", (json.dumps(tags), memory_id)
+            )
+        self._conn.commit()
+
+    def update_memory_last_used(self, memory_id: str):
+        self._conn.execute(
+            "UPDATE memories SET last_used=? WHERE id=?", (_ms(), memory_id)
+        )
+        self._conn.commit()
+
+    def update_memory_weight(self, memory_id: str, increment: float):
+        self._conn.execute(
+            "UPDATE memories SET weight = MIN(weight + ?, 5.0) WHERE id=?",
+            (increment, memory_id),
+        )
+        self._conn.commit()
+
+    def delete_memory(self, memory_id: str):
+        self._conn.execute("DELETE FROM memories WHERE id=?", (memory_id,))
+        self._conn.commit()
+
+    def create_memory_suggestion(self, profile_id: str, session_id: str,
+                                  content: str, tags: list) -> dict:
+        sid = str(uuid.uuid4())
+        now = _ms()
+        self._conn.execute(
+            "INSERT INTO memory_suggestions (id, profile_id, session_id, content, tags, created_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (sid, profile_id, session_id, content[:120], json.dumps(tags), now),
+        )
+        self._conn.commit()
+        return self._suggestion_dict(
+            self._conn.execute(
+                "SELECT * FROM memory_suggestions WHERE id=?", (sid,)
+            ).fetchone()
+        )
+
+    def list_memory_suggestions(self, profile_id: str) -> list:
+        rows = self._conn.execute(
+            "SELECT * FROM memory_suggestions WHERE profile_id=? ORDER BY created_at DESC",
+            (profile_id,),
+        ).fetchall()
+        return [self._suggestion_dict(r) for r in rows]
+
+    def delete_memory_suggestion(self, suggestion_id: str):
+        self._conn.execute(
+            "DELETE FROM memory_suggestions WHERE id=?", (suggestion_id,)
+        )
+        self._conn.commit()
+
+    def accept_memory_suggestion(self, suggestion_id: str) -> dict:
+        """Converts a suggestion into a memory. Returns the new memory."""
+        row = self._conn.execute(
+            "SELECT * FROM memory_suggestions WHERE id=?", (suggestion_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError(f"Suggestion {suggestion_id} not found")
+        s = self._suggestion_dict(row)
+        memory = self.create_memory(s["profile_id"], s["content"], s["tags"], source="ai")
+        self.delete_memory_suggestion(suggestion_id)
+        return memory
+
+    def _memory_dict(self, row) -> dict:
+        d = dict(row)
+        d["tags"] = json.loads(d["tags"])
+        return d
+
+    def _suggestion_dict(self, row) -> dict:
+        d = dict(row)
+        d["tags"] = json.loads(d["tags"])
+        return d
 
     def close(self):
         self._conn.close()
