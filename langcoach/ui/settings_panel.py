@@ -30,6 +30,8 @@ class SettingsPanel(QWidget):
         self.settings = settings.copy()
         self.on_settings_changed = None
         self.on_close = None
+        self.on_update_requested = None  # callback() → called when user confirms update
+        self._check_in_progress = False
 
         self.setObjectName("SettingsPanel")
         # WA_StyledBackground + setAutoFillBackground force Qt to paint the solid background
@@ -100,6 +102,9 @@ class SettingsPanel(QWidget):
         layout.addWidget(self._build_display_options())
 
         layout.addStretch()
+
+        layout.addWidget(self._section("⬆  App"))
+        layout.addWidget(self._build_update_section())
 
         scroll.setWidget(content)
         root.addWidget(scroll, 1)
@@ -503,6 +508,115 @@ class SettingsPanel(QWidget):
         show_corrections.toggled.connect(lambda v: self._update("show_corrections", v))
         layout.addWidget(show_corrections)
 
+        return w
+
+    def _build_update_section(self) -> QWidget:
+        from core.updater import fetch_latest_release, run_update, get_local_version
+
+        w = QWidget()
+        w.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        local_ver = get_local_version()
+        version_label = QLabel(f"Version installée : {local_ver}")
+        version_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        version_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(version_label)
+
+        status_label = QLabel("")
+        status_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        status_label.setWordWrap(True)
+        layout.addWidget(status_label)
+
+        btn = QPushButton("Vérifier les mises à jour")
+        btn.setFixedHeight(36)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['bg_card']};
+                color: {T['text_primary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_md']}px;
+                padding: 0 16px;
+                font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{
+                border-color: {T['accent']};
+                background-color: {T['accent_soft']};
+                color: {T['accent']};
+            }}
+            QPushButton:disabled {{
+                color: {T['text_muted']};
+            }}
+        """)
+        layout.addWidget(btn)
+
+        update_btn = QPushButton("⬆  Mettre à jour")
+        update_btn.setFixedHeight(36)
+        update_btn.setVisible(False)
+        update_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['accent']};
+                color: #ffffff;
+                border: none;
+                border-radius: {T['radius_md']}px;
+                padding: 0 16px;
+                font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}';
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {T['accent']};
+                opacity: 0.9;
+            }}
+        """)
+        layout.addWidget(update_btn)
+
+        def on_check():
+            if self._check_in_progress:
+                return
+            self._check_in_progress = True
+            btn.setEnabled(False)
+            btn.setText("Vérification…")
+            status_label.setText("")
+            update_btn.setVisible(False)
+
+            # Run in background thread to avoid blocking UI
+            import threading
+            def _check():
+                info = fetch_latest_release()
+                # Schedule UI update on main thread via a single-shot QTimer
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: _update_ui(info))
+
+            def _update_ui(info):
+                self._check_in_progress = False
+                btn.setEnabled(True)
+                btn.setText("Vérifier les mises à jour")
+                if info is None:
+                    status_label.setText("Impossible de vérifier (pas de connexion ?)")
+                    status_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+                elif info.update_available:
+                    status_label.setText(f"Version {info.latest_version} disponible !")
+                    status_label.setStyleSheet(f"color: {T['accent']}; background: transparent;")
+                    update_btn.setVisible(True)
+                    update_btn.setProperty("release_url", info.release_url)
+                else:
+                    status_label.setText(f"Vous avez la dernière version ({info.local_version}).")
+                    status_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+
+            threading.Thread(target=_check, daemon=True).start()
+
+        def on_update():
+            run_update()
+            if self.on_update_requested:
+                self.on_update_requested()
+
+        btn.clicked.connect(on_check)
+        update_btn.clicked.connect(on_update)
         return w
 
     def _update(self, key: str, value):
