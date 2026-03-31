@@ -126,7 +126,7 @@ class SettingsPanel(QWidget):
         layout = QHBoxLayout(header)
         layout.setContentsMargins(T["spacing_lg"], 0, T["spacing_lg"], 0)
 
-        title = QLabel("Settings")
+        title = QLabel("Paramètres")
         title.setFont(QFont(T["font_display"], T["font_size_lg"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent; border: none;")
         layout.addWidget(title, 1)
