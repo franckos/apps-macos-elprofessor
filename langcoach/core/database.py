@@ -383,11 +383,18 @@ class Database:
         return [self._memory_dict(r) for r in rows]
 
     def update_memory(self, memory_id: str, content: str = None, tags: list = None):
-        if content is not None:
+        if content is None and tags is None:
+            return
+        if content is not None and tags is not None:
+            self._conn.execute(
+                "UPDATE memories SET content=?, tags=? WHERE id=?",
+                (content[:120], json.dumps(tags), memory_id),
+            )
+        elif content is not None:
             self._conn.execute(
                 "UPDATE memories SET content=? WHERE id=?", (content[:120], memory_id)
             )
-        if tags is not None:
+        else:
             self._conn.execute(
                 "UPDATE memories SET tags=? WHERE id=?", (json.dumps(tags), memory_id)
             )
@@ -440,16 +447,27 @@ class Database:
         self._conn.commit()
 
     def accept_memory_suggestion(self, suggestion_id: str) -> dict:
-        """Converts a suggestion into a memory. Returns the new memory."""
+        """Converts a suggestion into a memory atomically. Returns the new memory."""
         row = self._conn.execute(
             "SELECT * FROM memory_suggestions WHERE id=?", (suggestion_id,)
         ).fetchone()
         if not row:
             raise ValueError(f"Suggestion {suggestion_id} not found")
         s = self._suggestion_dict(row)
-        memory = self.create_memory(s["profile_id"], s["content"], s["tags"], source="ai")
-        self.delete_memory_suggestion(suggestion_id)
-        return memory
+        mid = str(uuid.uuid4())
+        now = _ms()
+        self._conn.execute(
+            "INSERT INTO memories (id, profile_id, content, tags, source, weight, last_used, created_at) "
+            "VALUES (?,?,?,?,?,1.0,NULL,?)",
+            (mid, s["profile_id"], s["content"][:120], json.dumps(s["tags"]), "ai", now),
+        )
+        self._conn.execute(
+            "DELETE FROM memory_suggestions WHERE id=?", (suggestion_id,)
+        )
+        self._conn.commit()
+        return self._memory_dict(
+            self._conn.execute("SELECT * FROM memories WHERE id=?", (mid,)).fetchone()
+        )
 
     def _memory_dict(self, row) -> dict:
         d = dict(row)
