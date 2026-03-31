@@ -712,6 +712,7 @@ class MainWindow(QMainWindow):
 
     def _on_reset(self):
         """Quick new session — shows topic picker without analysis."""
+        self._btn_finir.setEnabled(True)
         while self._chat_layout.count() > 1:
             item = self._chat_layout.takeAt(0)
             if item.widget():
@@ -1156,12 +1157,9 @@ class MainWindow(QMainWindow):
         """Sets the topic in settings and switches to chat screen."""
         self.settings["topic"] = topic
         self._db.update_profile_settings(self._profile["id"], self.settings)
-        if hasattr(self, 'session') and self.session:
-            self.session.update_settings(self.settings)
-        if hasattr(self, '_update_sidebar_info'):
-            self._update_sidebar_info()
-        if hasattr(self, '_session_stack'):
-            self._session_stack.setCurrentIndex(1)
+        self.session.update_settings(self.settings)
+        self._update_sidebar_info()
+        self._session_stack.setCurrentIndex(1)
 
     def _start_with_free_topic(self):
         topic = self._topic_free_input.text().strip()
