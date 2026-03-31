@@ -9,7 +9,7 @@ set -euo pipefail
 GITHUB_OWNER="OWNER"          # <-- REPLACE with your GitHub username/org
 GITHUB_REPO="REPO"            # <-- REPLACE with your GitHub repo name
 INSTALL_DIR="$HOME/Applications/LangCoach"
-APP_BUNDLE="/Applications/LangCoach.app"
+APP_BUNDLE="/Applications/El Profesor.app"
 PYTHON_VERSION="3.11"
 
 # ── Colors ────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ else
 fi
 
 # ── Step 6: Clone or update repo ─────────────────────────────
-step "Code source LangCoach"
+step "Code source El Profesor"
 REPO_URL="https://github.com/$GITHUB_OWNER/$GITHUB_REPO.git"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   ok "Répertoire existant — mise à jour"
@@ -123,7 +123,7 @@ else
 fi
 
 # ── Step 9: Create /Applications/LangCoach.app ───────────────
-step "Création de LangCoach.app dans /Applications/"
+step "Création d'El Profesor.app dans /Applications/"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
@@ -138,9 +138,9 @@ cat > "$APP_CONTENTS/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>LangCoach</string>
+  <string>El Profesor</string>
   <key>CFBundleDisplayName</key>
-  <string>LangCoach</string>
+  <string>El Profesor</string>
   <key>CFBundleIdentifier</key>
   <string>com.quantelys.langcoach</string>
   <key>CFBundleVersion</key>
@@ -158,7 +158,7 @@ cat > "$APP_CONTENTS/Info.plist" <<'PLIST'
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>LangCoach utilise le microphone pour reconnaître ta voix.</string>
+  <string>El Profesor utilise le microphone pour reconnaître ta voix.</string>
 </dict>
 </plist>
 PLIST
@@ -198,13 +198,13 @@ fi
 # Refresh Launchpad / Finder icon cache
 touch "$APP_BUNDLE"
 
-ok "LangCoach.app créé dans /Applications/"
+ok "El Profesor.app créé dans /Applications/"
 
 # ── Done ─────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}${BOLD}✅  LangCoach est installé !${RESET}"
+echo -e "${GREEN}${BOLD}✅  El Profesor est installé !${RESET}"
 echo -e "   Cherche-le dans ton ${BOLD}Launchpad${RESET} ou double-clique sur"
-echo -e "   ${BOLD}/Applications/LangCoach.app${RESET}"
+echo -e "   ${BOLD}/Applications/El Profesor.app${RESET}"
 echo ""
 echo -e "${YELLOW}Note :${RESET} Au premier lancement, Whisper (~500 MB) sera téléchargé"
 echo -e "automatiquement. Compte 1-2 minutes de chargement."

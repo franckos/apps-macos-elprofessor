@@ -23,7 +23,7 @@ ok "Dépendances à jour"
 
 # Regenerate .app launcher in case it changed
 step "Régénération du launcher .app"
-APP_MACOS="/Applications/LangCoach.app/Contents/MacOS"
+APP_MACOS="/Applications/El Profesor.app/Contents/MacOS"
 if [[ -d "$APP_MACOS" ]]; then
   cat > "$APP_MACOS/LangCoach" <<LAUNCHER
 #!/usr/bin/env bash
@@ -43,5 +43,5 @@ fi
 
 echo ""
 echo -e "${GREEN}${BOLD}✅  Mise à jour terminée !${RESET}"
-echo -e "   Relance LangCoach depuis le Launchpad."
+echo -e "   Relance El Profesor depuis le Launchpad."
 echo ""
