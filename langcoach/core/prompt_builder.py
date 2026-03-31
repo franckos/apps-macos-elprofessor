@@ -3,10 +3,12 @@ LangCoach — Prompt Builder
 Génère le system prompt en fonction des paramètres de session
 """
 
+import json
+
 from config.settings import TEACHER_STYLES, LEVELS, TARGET_LANGUAGES, NATIVE_LANGUAGES, COACHES
 
 
-def build_system_prompt(settings: dict, user_name: str = "the student") -> str:
+def build_system_prompt(settings: dict, user_name: str = "the student", memories: list = None) -> str:
     style_key = settings.get("teacher_style", "bienveillant")
     level_key = settings.get("level", "B1")
     topic = settings.get("topic", "Conversation libre")
@@ -60,7 +62,24 @@ def build_system_prompt(settings: dict, user_name: str = "the student") -> str:
 ## Session Start
 Greet {user_name} warmly in {lang_name}, introduce yourself briefly as {coach_name}, and open the topic "{topic}" with an engaging question suited to {level_key} level.
 """
+    memory_block = _format_memory_block(memories)
+    if memory_block:
+        prompt += f"\n\n{memory_block}"
+
     return prompt.strip()
+
+
+def _format_memory_block(memories: list) -> str:
+    if not memories:
+        return ""
+    lines = []
+    for m in memories:
+        tags = m["tags"] if isinstance(m["tags"], list) else json.loads(m["tags"])
+        first_tag = next(
+            (t for t in tags if t not in ("important", "confidentiel")), "perso"
+        )
+        lines.append(f"- [{first_tag}] {m['content']}")
+    return "## Ce que tu sais sur ton élève\n" + "\n".join(lines)
 
 
 def build_correction_note(original: str, corrected: str, explanation: str) -> str:
