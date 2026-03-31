@@ -103,6 +103,9 @@ class SettingsPanel(QWidget):
 
         layout.addStretch()
 
+        layout.addWidget(self._section("🧠  Mémoires"))
+        layout.addWidget(self._build_memories_section())
+
         layout.addWidget(self._section("⬆  App"))
         layout.addWidget(self._build_update_section())
 
@@ -632,3 +635,66 @@ class SettingsPanel(QWidget):
         self.settings[key] = value
         if self.on_settings_changed:
             self.on_settings_changed(self.settings.copy())
+
+    def _build_memories_section(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        desc = QLabel("Faits personnels injectés dans le prompt pour personnaliser vos sessions.")
+        desc.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        desc.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        btn = QPushButton("Gérer les mémoires →")
+        btn.setFixedHeight(36)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['bg_card']};
+                color: {T['text_primary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_md']}px;
+                padding: 0 16px;
+                font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{
+                border-color: {T['accent']};
+                background-color: {T['accent_soft']};
+                color: {T['accent']};
+            }}
+        """)
+        btn.clicked.connect(self._open_memory_dialog)
+        layout.addWidget(btn)
+
+        self._memory_suggestion_badge = QLabel("")
+        self._memory_suggestion_badge.setStyleSheet(
+            f"color: {T['accent']}; background: transparent; font-size: {T['font_size_xs']}px;"
+        )
+        self._memory_suggestion_badge.hide()
+        layout.addWidget(self._memory_suggestion_badge)
+
+        return w
+
+    def _open_memory_dialog(self):
+        if not hasattr(self, '_profile') or not self._profile:
+            return
+        from ui.memory_panel import MemoryDialog
+        dlg = MemoryDialog(self._db, self._profile, parent=self)
+        dlg.exec()
+
+    def set_profile_context(self, db, profile: dict):
+        """Called by MainWindow after init to provide profile context for the memory dialog."""
+        self._db = db
+        self._profile = profile
+
+    def update_suggestion_badge(self, count: int):
+        """Shows/hides a badge with pending suggestion count."""
+        if count > 0:
+            self._memory_suggestion_badge.setText(f"💡 {count} suggestion(s) en attente")
+            self._memory_suggestion_badge.show()
+        else:
+            self._memory_suggestion_badge.hide()
