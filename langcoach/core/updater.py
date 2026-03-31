@@ -14,8 +14,8 @@ from typing import Optional
 log = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────
-GITHUB_OWNER = "OWNER"   # <-- REPLACE with your GitHub username/org
-GITHUB_REPO  = "REPO"    # <-- REPLACE with your GitHub repo name
+GITHUB_OWNER = "franckos"
+GITHUB_REPO  = "apps-macos-elprofessor"
 
 # Path to version.txt — resolved relative to this file's location
 # core/updater.py → langcoach/ → MacOS/ → version.txt

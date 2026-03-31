@@ -23,23 +23,24 @@ Most language apps are either expensive, gamified time-wasters, or send your voi
 - **Adapts to you.** 5 teaching styles, 6 CEFR levels (A1 → C2), 12 conversation topics, multiple AI coaches to pick from.
 - **No fluff.** Just you and your coach, talking.
 
-> *"The Professor never shows his face. But his students always succeed."* — La Casa de Papel
+> _"The Professor never shows his face. But his students always succeed."_ — La Casa de Papel
 
 ---
 
 ## What it looks like
 
-| Voice conversation | Settings |
-|---|---|
+| Voice conversation                    | Settings                           |
+| ------------------------------------- | ---------------------------------- |
 | Real-time transcription + AI response | Teacher style, level, topic, coach |
 
-> *(Screenshots coming soon)*
+> _(Screenshots coming soon)_
 
 ---
 
 ## Features
 
 **Languages**
+
 - English 🇬🇧🇺🇸 — British (Angela) or American (Georges) accent
 - Spanish 🇪🇸 — Aitanita or Javier
 
@@ -57,6 +58,7 @@ Most language apps are either expensive, gamified time-wasters, or send your voi
 **Conversation topics** — Free talk, job interviews, travel, debates, business negotiation, and more
 
 **Input modes**
+
 - VAD (voice activity detection) — just speak, it listens automatically
 - Push-to-talk — hold Space to record
 
@@ -68,14 +70,14 @@ Most language apps are either expensive, gamified time-wasters, or send your voi
 
 Everything runs locally on your machine.
 
-| Role | Technology | Details |
-|---|---|---|
-| **UI** | PyQt6 | Native macOS app, dark theme |
+| Role                   | Technology                        | Details                             |
+| ---------------------- | --------------------------------- | ----------------------------------- |
+| **UI**                 | PyQt6                             | Native macOS app, dark theme        |
 | **Speech Recognition** | Whisper (OpenAI, via HuggingFace) | ~500 MB, downloaded on first launch |
-| **Language Model** | Llama 3.1 8B via Ollama | ~4.7 GB, runs smoothly on M1/M2/M3 |
-| **Voice Synthesis** | Kokoro TTS | High-quality neural voices |
-| **Audio I/O** | PortAudio + sounddevice | Low-latency microphone capture |
-| **Conversation DB** | SQLite | All data in `~/.langcoach/` |
+| **Language Model**     | Llama 3.1 8B via Ollama           | ~4.7 GB, runs smoothly on M1/M2/M3  |
+| **Voice Synthesis**    | Kokoro TTS                        | High-quality neural voices          |
+| **Audio I/O**          | PortAudio + sounddevice           | Low-latency microphone capture      |
+| **Conversation DB**    | SQLite                            | All data in `~/.langcoach/`         |
 
 No cloud. No GPU required. Runs entirely on Apple Silicon Neural Engine + CPU.
 
@@ -95,10 +97,11 @@ No cloud. No GPU required. Runs entirely on Apple Silicon Neural Engine + CPU.
 One command. That's it.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR-USERNAME/YOUR-REPO/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/franckos/apps-macos-elprofessor/main/install.sh | bash
 ```
 
 The script will:
+
 1. Check your Mac is Apple Silicon
 2. Install Homebrew if needed
 3. Install PortAudio and Ollama via Homebrew
@@ -152,14 +155,14 @@ MacOS/
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|---|---|
-| `Space` (hold) | Push-to-talk |
-| `A` | Toggle VAD (auto-listen) |
-| `R` | Reset session |
-| `S` | Open/close settings |
-| `Esc` | Stop voice playback |
-| `Enter` | Send typed message |
+| Key            | Action                   |
+| -------------- | ------------------------ |
+| `Space` (hold) | Push-to-talk             |
+| `A`            | Toggle VAD (auto-listen) |
+| `R`            | Reset session            |
+| `S`            | Open/close settings      |
+| `Esc`          | Stop voice playback      |
+| `Enter`        | Send typed message       |
 
 ---
 
@@ -181,4 +184,4 @@ MIT — do whatever you want with it.
 
 Built with [Ollama](https://ollama.ai), [Whisper](https://github.com/openai/whisper), [Kokoro TTS](https://github.com/hexgrad/kokoro), and [PyQt6](https://riverbankcomputing.com/software/pyqt/).
 
-*Inspired by the greatest teacher who never showed his face.*
+_Inspired by the greatest teacher who never showed his face._

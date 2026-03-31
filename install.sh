@@ -6,8 +6,8 @@
 set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────
-GITHUB_OWNER="OWNER"          # <-- REPLACE with your GitHub username/org
-GITHUB_REPO="REPO"            # <-- REPLACE with your GitHub repo name
+GITHUB_OWNER="franckos"
+GITHUB_REPO="apps-macos-elprofessor"
 INSTALL_DIR="$HOME/Applications/LangCoach"
 APP_BUNDLE="/Applications/El Profesor.app"
 PYTHON_VERSION="3.11"
