@@ -71,6 +71,7 @@ from ui.widgets import (
     WaveformWidget,
     ToastNotification,
 )
+from ui.analysis_report import AnalysisReportWidget
 
 
 class MainWindow(QMainWindow):
@@ -216,6 +217,12 @@ class MainWindow(QMainWindow):
         self._input_bar = self._build_input_bar()
         chat_vlayout.addWidget(self._input_bar)
         self._session_stack.addWidget(chat_widget)
+
+        # Index 2: analysis report
+        self._analysis_report = AnalysisReportWidget(db=self._db)
+        self._analysis_report.on_new_session = self._on_analysis_new_session
+        self._analysis_report.on_go_dashboard = self._on_analysis_go_dashboard
+        self._session_stack.addWidget(self._analysis_report)
 
         session_outer_layout.addWidget(self._session_stack, 1)
         self._main_stack.addWidget(session_widget)
@@ -1008,7 +1015,7 @@ class MainWindow(QMainWindow):
     # ── Finir et Analyser ─────────────────────────────────────
 
     def _on_finir_analyser(self):
-        """Closes session, runs quality analysis + memory extraction, shows recap modal."""
+        """Triggers quality analysis + memory extraction, then shows analysis report screen."""
         if not self._stats.session_id:
             self._show_toast("Aucune session active à analyser", kind="info")
             return
@@ -1019,92 +1026,46 @@ class MainWindow(QMainWindow):
         from PyQt6.QtCore import QObject, pyqtSignal as _sig
 
         class Emitter(QObject):
-            done = _sig(object, object, int)
+            done = _sig(object, object, object)
 
         emitter = Emitter()
         emitter.done.connect(self._on_finir_result)
         self._finir_emitter = emitter  # keep alive
 
-        def _on_done(score, summary, suggestion_count):
-            emitter.done.emit(score, summary, suggestion_count)
+        def _on_done(score, analysis, suggestions):
+            emitter.done.emit(score, analysis, suggestions)
 
         self._stats.analyze_and_extract_async(_on_done)
 
-        # Clear chat for new session
+    def _on_finir_result(self, score, analysis, suggestions):
+        self._btn_finir.setEnabled(True)
+        self._btn_finir.setText("Analyser")
+
+        session_info = {
+            "language": self.settings.get("target_language", ""),
+            "level": self.settings.get("level", ""),
+            "topic": self.settings.get("topic", ""),
+        }
+        self._analysis_report.load_report(score, analysis, suggestions, session_info)
+        self._session_stack.setCurrentIndex(2)
+
+        # Update memory badge if suggestions exist
+        if suggestions and hasattr(self, '_settings_panel'):
+            self._settings_panel.update_suggestion_badge(len(suggestions))
+
+    def _on_analysis_new_session(self):
+        """Called from analysis report 'Nouvelle discussion' button."""
         while self._chat_layout.count() > 1:
             item = self._chat_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         self.session.reset_session()
+        self._refresh_topic_picker()
+        self._session_stack.setCurrentIndex(0)
 
-    def _on_finir_result(self, score, summary, suggestion_count):
-        self._btn_finir.setEnabled(True)
-        self._btn_finir.setText("Analyser")
-        self._show_analysis_recap(score, summary, suggestion_count)
-
-    def _show_analysis_recap(self, score, summary, suggestion_count):
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
-        from PyQt6.QtGui import QFont
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Résumé de session")
-        dlg.setMinimumWidth(400)
-        dlg.setStyleSheet(f"background-color: {T['bg_card']}; color: {T['text_primary']};")
-
-        layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(16)
-
-        title = QLabel("Résumé de session")
-        title.setFont(QFont(T["font_display"], T["font_size_lg"]))
-        title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
-        layout.addWidget(title)
-
-        if score is not None:
-            score_pct = round(score * 100)
-            score_lbl = QLabel(f"Score qualité : {score_pct} / 100")
-            score_lbl.setFont(QFont(T["font_body"], T["font_size_md"]))
-            score_lbl.setStyleSheet(f"color: {T['accent']}; background: transparent; font-weight: 600;")
-            layout.addWidget(score_lbl)
-
-        if summary:
-            summary_edit = QTextEdit()
-            summary_edit.setPlainText(summary)
-            summary_edit.setReadOnly(True)
-            summary_edit.setFixedHeight(80)
-            summary_edit.setStyleSheet(f"""
-                QTextEdit {{
-                    background-color: {T['bg_secondary']};
-                    color: {T['text_secondary']};
-                    border: 1px solid {T['border']};
-                    border-radius: {T['radius_sm']}px;
-                    padding: 8px;
-                    font-size: {T['font_size_sm']}px;
-                }}
-            """)
-            layout.addWidget(summary_edit)
-
-        if suggestion_count > 0:
-            mem_lbl = QLabel(f"{suggestion_count} mémoire(s) suggérée(s) — Consultez l'onglet Mémoires dans les paramètres.")
-            mem_lbl.setStyleSheet(f"color: {T['accent']}; background: transparent; font-size: {T['font_size_sm']}px;")
-            mem_lbl.setWordWrap(True)
-            layout.addWidget(mem_lbl)
-            if hasattr(self, '_settings_panel'):
-                self._settings_panel.update_suggestion_badge(suggestion_count)
-
-        ok_btn = QPushButton("Fermer")
-        ok_btn.setFixedHeight(36)
-        ok_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {T['accent']}; color: white;
-                border: none; border-radius: {T['radius_md']}px;
-                padding: 0 20px; font-size: {T['font_size_sm']}px;
-                font-family: '{T['font_body']}'; font-weight: 600;
-            }}
-        """)
-        ok_btn.clicked.connect(dlg.accept)
-        from PyQt6.QtCore import Qt
-        layout.addWidget(ok_btn, alignment=Qt.AlignmentFlag.AlignRight)
-        dlg.exec()
+    def _on_analysis_go_dashboard(self):
+        """Called from analysis report 'Tableau de bord' button."""
+        self._switch_tab(1)
 
     # ── Topic picker ──────────────────────────────────────────
 
