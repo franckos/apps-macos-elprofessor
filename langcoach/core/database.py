@@ -113,8 +113,10 @@ class Database:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
-        self._migrate_schema()
+        # RLock (not Lock) — required because some public methods call other
+        # public methods while already holding the lock (e.g. create_profile → get_profile).
         self._lock = threading.RLock()
+        self._migrate_schema()
 
     def _migrate_schema(self):
         """Ajoute les colonnes manquantes pour les anciennes bases de données."""
@@ -365,6 +367,7 @@ class Database:
             return list(reversed([dict(r) for r in rows]))
 
     def _compute_streak(self, profile_id: str) -> int:
+        # Called only from within locked public methods — do not call directly.
         rows = self._conn.execute(
             "SELECT DATE(started_at/1000, 'unixepoch') as day FROM sessions "
             "WHERE profile_id=? "
