@@ -339,9 +339,106 @@ class AnalysisReportWidget(QWidget):
         return card
 
     def _build_suggestions_section(self, suggestions: list) -> QFrame:
-        """Placeholder — full implementation in Task 6."""
+        """Builds the memory suggestions card. Each card has Accept/Ignore buttons."""
         card, body = self._make_section_card(f"MÉMOIRES SUGGÉRÉES  ({len(suggestions)})")
+        self._suggestions_body = body
+
+        for s in suggestions:
+            self._add_suggestion_card(s, body)
+
+        if not suggestions:
+            empty_lbl = QLabel("Aucune mémoire suggérée pour cette session.")
+            empty_lbl.setStyleSheet(
+                f"color: {T['text_muted']}; background: transparent; font-size: {T['font_size_sm']}px;"
+            )
+            body.addWidget(empty_lbl)
+
         return card
+
+    def _add_suggestion_card(self, suggestion: dict, parent_layout):
+        """Creates one suggestion row with Accept/Ignore buttons."""
+        sid = suggestion["id"]
+        row = QFrame()
+        row.setObjectName(f"suggestion_{sid}")
+        row.setStyleSheet(f"""
+            QFrame {{
+                background-color: {T['bg_secondary']};
+                border-radius: {T['radius_sm']}px;
+                border: 1px solid {T['border']};
+            }}
+        """)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(T["spacing_md"], T["spacing_sm"], T["spacing_sm"], T["spacing_sm"])
+        row_layout.setSpacing(T["spacing_sm"])
+
+        icon = QLabel("💡")
+        icon.setFixedWidth(24)
+        icon.setStyleSheet("background: transparent;")
+        row_layout.addWidget(icon)
+
+        content_lbl = QLabel(suggestion.get("content", ""))
+        content_lbl.setStyleSheet(
+            f"color: {T['text_primary']}; background: transparent; font-size: {T['font_size_sm']}px;"
+        )
+        content_lbl.setWordWrap(True)
+        row_layout.addWidget(content_lbl, 1)
+
+        accept_btn = QPushButton("Accepter")
+        accept_btn.setFixedHeight(28)
+        accept_btn.setFixedWidth(80)
+        accept_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['success']}22;
+                color: {T['success']};
+                border: 1px solid {T['success']}44;
+                border-radius: {T['radius_sm']}px;
+                font-size: {T['font_size_xs']}px;
+                font-family: '{T['font_body']}';
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background-color: {T['success']}44; }}
+        """)
+        accept_btn.clicked.connect(lambda checked, s=sid, r=row: self._on_accept_suggestion(s, r))
+        row_layout.addWidget(accept_btn)
+
+        ignore_btn = QPushButton("Ignorer")
+        ignore_btn.setFixedHeight(28)
+        ignore_btn.setFixedWidth(70)
+        ignore_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {T['text_muted']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_sm']}px;
+                font-size: {T['font_size_xs']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{ color: {T['text_secondary']}; }}
+        """)
+        ignore_btn.clicked.connect(lambda checked, s=sid, r=row: self._on_ignore_suggestion(s, r))
+        row_layout.addWidget(ignore_btn)
+
+        self._suggestion_cards[sid] = row
+        parent_layout.addWidget(row)
+
+    def _on_accept_suggestion(self, suggestion_id: str, row: QFrame):
+        try:
+            self._db.accept_memory_suggestion(suggestion_id)
+        except Exception:
+            pass
+        self._remove_suggestion_card(suggestion_id, row)
+
+    def _on_ignore_suggestion(self, suggestion_id: str, row: QFrame):
+        try:
+            self._db.delete_memory_suggestion(suggestion_id)
+        except Exception:
+            pass
+        self._remove_suggestion_card(suggestion_id, row)
+
+    def _remove_suggestion_card(self, suggestion_id: str, row: QFrame):
+        row.hide()
+        row.deleteLater()
+        self._suggestion_cards.pop(suggestion_id, None)
 
     # ── Load report ───────────────────────────────────────────
 
