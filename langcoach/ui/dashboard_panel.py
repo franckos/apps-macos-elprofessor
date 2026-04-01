@@ -475,7 +475,8 @@ class DashboardPanel(QWidget):
         btn.setEnabled(False)
         btn.setText("Analyse…")
 
-        def on_done(score, summary):
+        def on_done(score, analysis):
+            summary = analysis.get("summary", "") if isinstance(analysis, dict) else str(analysis)
             def update_ui():
                 if self._profile:
                     self._refresh_sessions(self._profile["id"])

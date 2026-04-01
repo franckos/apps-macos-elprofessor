@@ -161,50 +161,36 @@ class StatsEngine:
             logger.warning(f"Génération du titre échouée : {e}")
 
     def analyze_session_by_id(self, session_id: str, on_done):
-        """Analyse à la demande d'une session spécifique. Appelle on_done(score, summary)."""
+        """Analyse à la demande d'une session. Appelle on_done(score, analysis_dict)."""
+        _empty = {"summary": "LLM non disponible.", "errors": [], "improvements": [], "vocabulary": []}
         if not self._llm:
-            on_done(None, "LLM non disponible.")
+            on_done(None, _empty)
             return
 
         def run():
             try:
                 session = self._db.get_session(session_id)
                 if not session:
-                    on_done(None, "Session introuvable.")
+                    on_done(None, {"summary": "Session introuvable.", "errors": [], "improvements": [], "vocabulary": []})
                     return
                 exchanges = self._db.get_session_exchanges(session_id)
                 if not exchanges:
-                    on_done(None, "Aucun échange à analyser.")
+                    on_done(None, {"summary": "Aucun échange à analyser.", "errors": [], "improvements": [], "vocabulary": []})
                     return
-                convo = "\n".join(
-                    f"Apprenant : {e['user_text']}\nCoach : {e['ai_response'][:200]}"
-                    for e in exchanges[:10]
-                )
-                prompt = (
-                    f"Analyse cette séance d'apprentissage. Réponds UNIQUEMENT avec un objet JSON valide.\n\n"
-                    f"Séance :\n"
-                    f"- Langue : {session['language']} ({session['level']})\n"
-                    f"- Sujet : {session['topic']}\n"
-                    f"- Échanges : {session['exchange_count']}\n"
-                    f"- Erreurs : {session['error_count']}\n\n"
-                    f"Résumé de la conversation :\n{convo[:1200]}\n\n"
-                    f"Réponds avec UNIQUEMENT ce JSON (pas d'autre texte) :\n"
-                    f'{{\"quality_score\": 0.75, \"summary\": \"2-3 phrases en français sur la qualité et les points à améliorer.\"}}\n\n'
-                    f"quality_score : de 0.0 (très mauvais) à 1.0 (excellent). summary : en français, bienveillant."
-                )
+                prompt = self._build_full_analysis_prompt(session, exchanges)
                 response = self._llm.chat_oneshot(
-                    "Tu es un coach de langue qui analyse des séances. Réponds toujours en JSON valide.",
+                    "Tu es un coach de langue expert. Tu analyses des séances et fournis des rapports détaillés. Réponds toujours en JSON valide.",
                     prompt,
                 )
                 if response:
-                    score, summary = self._parse_analysis_response(response)
-                    self._db.update_session_summary(session_id, score, summary)
-                    on_done(score, summary)
+                    score, analysis = self._parse_analysis_response(response)
+                    self._db.update_session_summary(session_id, score, analysis["summary"])
+                    on_done(score, analysis)
                 else:
-                    on_done(None, "Analyse non disponible.")
+                    on_done(None, {"summary": "Analyse non disponible.", "errors": [], "improvements": [], "vocabulary": []})
             except Exception as e:
-                logger.error(f"Analyse à la demande échouée : {e}")
-                on_done(None, f"Erreur : {e}")
+                logger.error(f"Analyse échouée : {e}")
+                on_done(None, {"summary": f"Erreur : {e}", "errors": [], "improvements": [], "vocabulary": []})
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -234,42 +220,40 @@ class StatsEngine:
         self._error_count = 0
 
     def analyze_and_extract_async(self, on_done):
-        """Used by 'Finir et Analyser' button. Calls on_done(score, summary, suggestion_count)."""
+        """Used by 'Analyser' button. Calls on_done(score, analysis_dict, suggestions_list)."""
         if not self._session_id:
-            on_done(None, "Aucune session en cours.", 0)
+            on_done(None, {"summary": "Aucune session en cours.", "errors": [], "improvements": [], "vocabulary": []}, [])
             return
 
         session_id = self._session_id
         profile = self._profile
         exchange_count = self._exchange_count
 
-        # Close the session
         self._db.close_session(session_id, quality_score=None, summary=None)
         self._session_id = None
         self._exchange_count = 0
         self._error_count = 0
 
         if not self._llm or not profile:
-            on_done(None, "LLM non disponible.", 0)
+            on_done(None, {"summary": "LLM non disponible.", "errors": [], "improvements": [], "vocabulary": []}, [])
             return
 
-        suggestion_count_holder = [0]
-        analysis_result = [None, None]
-        done_events = [False, False]  # [analysis_done, extraction_done]
+        analysis_result = [None, None]   # [score, analysis_dict]
+        done_events = [False, False]     # [analysis_done, extraction_done]
 
         def _check_both_done():
             if all(done_events):
-                score, summary = analysis_result
-                on_done(score, summary, suggestion_count_holder[0])
+                score, analysis = analysis_result
+                suggestions = self._db.list_memory_suggestions(profile["id"])
+                on_done(score, analysis, suggestions)
 
-        def _on_analysis(score, summary):
+        def _on_analysis(score, analysis):
             analysis_result[0] = score
-            analysis_result[1] = summary
+            analysis_result[1] = analysis
             done_events[0] = True
             _check_both_done()
 
         def _on_extraction(count):
-            suggestion_count_holder[0] = count
             done_events[1] = True
             _check_both_done()
 
@@ -294,8 +278,8 @@ class StatsEngine:
         try:
             response = self._llm.chat(prompt)
             if response:
-                score, summary = self._parse_analysis_response(response)
-                self._db.close_session(session_id, quality_score=score, summary=summary)
+                score, analysis = self._parse_analysis_response(response)
+                self._db.close_session(session_id, quality_score=score, summary=analysis["summary"])
         except Exception as e:
             logger.error(f"Session analysis failed: {e}")
 
