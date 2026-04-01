@@ -14,31 +14,32 @@
 
 ### New Files
 
-| File | Responsibility |
-|------|---------------|
-| `langcoach/core/database.py` | SQLite manager: schema creation, CRUD, dashboard queries |
-| `langcoach/core/stats_engine.py` | Error parsing, exchange recording, end-of-session LLM analysis, lesson catalog |
-| `langcoach/ui/profile_screen.py` | Profile splash screen + 3-step creation wizard |
-| `langcoach/ui/dashboard_panel.py` | Dashboard tab: Vue globale / Erreurs / Sessions / Leçons |
-| `langcoach/tests/__init__.py` | Empty, marks tests as package |
-| `langcoach/tests/test_database.py` | Unit tests for Database |
-| `langcoach/tests/test_stats_engine.py` | Unit tests for StatsEngine |
+| File                                   | Responsibility                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `langcoach/core/database.py`           | SQLite manager: schema creation, CRUD, dashboard queries                       |
+| `langcoach/core/stats_engine.py`       | Error parsing, exchange recording, end-of-session LLM analysis, lesson catalog |
+| `langcoach/ui/profile_screen.py`       | Profile splash screen + 3-step creation wizard                                 |
+| `langcoach/ui/dashboard_panel.py`      | Dashboard tab: Vue globale / Erreurs / Sessions / Leçons                       |
+| `langcoach/tests/__init__.py`          | Empty, marks tests as package                                                  |
+| `langcoach/tests/test_database.py`     | Unit tests for Database                                                        |
+| `langcoach/tests/test_stats_engine.py` | Unit tests for StatsEngine                                                     |
 
 ### Modified Files
 
-| File | Change |
-|------|--------|
-| `langcoach/config/settings.py` | Add `DB_FILE`; add `load_last_profile_id` / `save_last_profile_id` / `migrate_if_needed` |
-| `langcoach/core/prompt_builder.py` | Add `user_name` param; update correction format instructions |
-| `langcoach/core/session.py` | Accept `profile` + `stats` on `initialize()`; wire exchange events; call `end_session()` on reset/close |
-| `langcoach/ui/main_window.py` | Accept `db` + `profile`; add Session/Dashboard tab navigation; wire StatsEngine |
-| `langcoach/main.py` | Profile selection flow before MainWindow; inject `db` + `profile` |
+| File                               | Change                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `langcoach/config/settings.py`     | Add `DB_FILE`; add `load_last_profile_id` / `save_last_profile_id` / `migrate_if_needed`                |
+| `langcoach/core/prompt_builder.py` | Add `user_name` param; update correction format instructions                                            |
+| `langcoach/core/session.py`        | Accept `profile` + `stats` on `initialize()`; wire exchange events; call `end_session()` on reset/close |
+| `langcoach/ui/main_window.py`      | Accept `db` + `profile`; add Session/Dashboard tab navigation; wire StatsEngine                         |
+| `langcoach/main.py`                | Profile selection flow before MainWindow; inject `db` + `profile`                                       |
 
 ---
 
 ## Task 1: Database Layer
 
 **Files:**
+
 - Create: `langcoach/core/database.py`
 - Create: `langcoach/tests/__init__.py`
 - Create: `langcoach/tests/test_database.py`
@@ -139,6 +140,7 @@ def test_session_exchange_count_incremented(db):
 ```bash
 cd langcoach && python -m pytest tests/test_database.py -v
 ```
+
 Expected: `ModuleNotFoundError: No module named 'core.database'`
 
 - [ ] **Step 1.3 — Create `langcoach/tests/__init__.py`**
@@ -424,6 +426,7 @@ class Database:
 ```bash
 cd langcoach && python -m pytest tests/test_database.py -v
 ```
+
 Expected: 8 tests PASS
 
 - [ ] **Step 1.6 — Commit**
@@ -438,6 +441,7 @@ git commit -m "feat: add SQLite database layer for profiles, sessions, errors, p
 ## Task 2: Update Config/Settings
 
 **Files:**
+
 - Modify: `langcoach/config/settings.py`
 
 - [ ] **Step 2.1 — Add DB_FILE, profile helpers, and migration**
@@ -501,7 +505,9 @@ print('DB_FILE:', DB_FILE)
 print('OK')
 "
 ```
+
 Expected:
+
 ```
 DB_FILE: /Users/<you>/.langcoach/data.db
 OK
@@ -519,6 +525,7 @@ git commit -m "feat: add DB_FILE, profile helpers, and settings migration"
 ## Task 3: Update Prompt Builder
 
 **Files:**
+
 - Modify: `langcoach/core/prompt_builder.py`
 
 - [ ] **Step 3.1 — Add `user_name` param and structured correction format**
@@ -597,6 +604,7 @@ assert 'tense: \"I go yesterday\"' in p2
 print('OK')
 "
 ```
+
 Expected: `OK`
 
 - [ ] **Step 3.3 — Commit**
@@ -611,6 +619,7 @@ git commit -m "feat: inject user name and structured correction format into syst
 ## Task 4: Stats Engine
 
 **Files:**
+
 - Create: `langcoach/core/stats_engine.py`
 - Create: `langcoach/tests/test_stats_engine.py`
 
@@ -712,6 +721,7 @@ def test_get_lesson_cards_threshold(db, profile):
 ```bash
 cd langcoach && python -m pytest tests/test_stats_engine.py -v
 ```
+
 Expected: `ModuleNotFoundError: No module named 'core.stats_engine'`
 
 - [ ] **Step 4.3 — Implement `langcoach/core/stats_engine.py`**
@@ -957,6 +967,7 @@ summary: Write in French. Be encouraging but honest."""
 ```bash
 cd langcoach && python -m pytest tests/test_stats_engine.py -v
 ```
+
 Expected: 7 tests PASS
 
 - [ ] **Step 4.5 — Commit**
@@ -971,6 +982,7 @@ git commit -m "feat: add StatsEngine with error parsing, recording, and lesson c
 ## Task 5: Update Session Manager
 
 **Files:**
+
 - Modify: `langcoach/core/session.py`
 
 - [ ] **Step 5.1 — Add `_profile`, `_stats`, `_exchange_start_ms` to `__init__`**
@@ -1126,6 +1138,7 @@ def update_settings(self, new_settings: dict):
 ```bash
 cd langcoach && python -c "from core.session import SessionManager; print('OK')"
 ```
+
 Expected: `OK`
 
 - [ ] **Step 5.9 — Commit**
@@ -1140,6 +1153,7 @@ git commit -m "feat: wire StatsEngine and user_name into SessionManager"
 ## Task 6: Profile Screen UI
 
 **Files:**
+
 - Create: `langcoach/ui/profile_screen.py`
 
 - [ ] **Step 6.1 — Implement `langcoach/ui/profile_screen.py`**
@@ -1224,7 +1238,7 @@ class ProfileScreen(QDialog):
         self._db = db
         self._selected_profile: Optional[dict] = None
         self.setModal(True)
-        self.setWindowTitle("Echo")
+        self.setWindowTitle("El Profesor")
         self.resize(680, 420)
         self.setStyleSheet(f"background-color: {T['bg_primary']}; color: {T['text_primary']};")
 
@@ -1622,6 +1636,7 @@ from ui.profile_screen import ProfileScreen, ProfileWizard
 print('OK')
 "
 ```
+
 Expected: `OK`
 
 - [ ] **Step 6.3 — Commit**
@@ -1636,6 +1651,7 @@ git commit -m "feat: add ProfileScreen splash and ProfileWizard 3-step creation"
 ## Task 7: Dashboard Panel
 
 **Files:**
+
 - Create: `langcoach/ui/dashboard_panel.py`
 
 - [ ] **Step 7.1 — Implement `langcoach/ui/dashboard_panel.py`**
@@ -2179,6 +2195,7 @@ from ui.dashboard_panel import DashboardPanel
 print('OK')
 "
 ```
+
 Expected: `OK`
 
 - [ ] **Step 7.3 — Commit**
@@ -2193,6 +2210,7 @@ git commit -m "feat: add DashboardPanel with Vue globale, Erreurs, Sessions, Le�
 ## Task 8: Main Window & Entry Point Integration
 
 **Files:**
+
 - Modify: `langcoach/ui/main_window.py`
 - Modify: `langcoach/main.py`
 
@@ -2410,7 +2428,7 @@ def _update_session_title(self):
     level = self.settings.get("level", "B1")
     topic = self.settings.get("topic", "Free talk")
     name = self._profile.get("name", "")
-    self.setWindowTitle(f"Echo — {name} · {lang} · {level} · {topic}")
+    self.setWindowTitle(f"El Profesor — {name} · {lang} · {level} · {topic}")
 ```
 
 - [ ] **Step 8.7 — Update `closeEvent` (no legacy settings save)**
@@ -2452,7 +2470,7 @@ def main():
         from PyQt6.QtGui import QFont
 
         app = QApplication(sys.argv)
-        app.setApplicationName("Echo")
+        app.setApplicationName("El Profesor")
         app.setApplicationVersion("1.0.0")
         app.setOrganizationName("Quantelys")
 
@@ -2522,6 +2540,7 @@ if __name__ == "__main__":
 ```bash
 cd langcoach && python -m pytest tests/ -v
 ```
+
 Expected: All 15 tests PASS
 
 - [ ] **Step 8.10 — Smoke test: launch the app**
@@ -2529,7 +2548,9 @@ Expected: All 15 tests PASS
 ```bash
 cd langcoach && python main.py
 ```
+
 Expected:
+
 1. ProfileScreen wizard appears (first launch, no profiles)
 2. Complete the 3-step wizard
 3. MainWindow opens with "💬 Session" and "📈 Dashboard" tabs in header
@@ -2549,28 +2570,28 @@ git commit -m "feat: integrate profile flow, stats, and dashboard tab into main 
 
 ### Spec Coverage
 
-| Spec requirement | Task implementing it |
-|---|---|
-| Profiles: name + avatar | Task 6 — ProfileWizard step 1 |
-| Multi-profile splash screen | Task 6 — ProfileScreen._build_splash |
-| Wizard 3 steps | Task 6 — ProfileWizard steps 1/2/3 |
-| Settings per profile | Task 2 + Task 8.5 (_on_settings_changed saves to DB) |
-| Auto-select single profile | Task 6 — ProfileScreen (QTimer.singleShot → accept) |
-| Migration from settings.json | Task 2 — migrate_if_needed |
-| SQLite schema (5 tables) | Task 1 — _SCHEMA + Database class |
-| Real-time [brackets] parsing | Task 4 — StatsEngine.parse_errors + _ERROR_RE |
-| Exchange recording | Task 4 — StatsEngine.record_exchange |
-| End-of-session LLM analysis | Task 4 — StatsEngine.end_session + _analyze_session_async |
-| error_patterns aggregation | Task 1 — record_errors (INSERT OR REPLACE) |
-| User name in system prompt | Task 3 — build_system_prompt(user_name=) |
-| Session / Dashboard tabs | Task 8 — QStackedWidget + tab buttons |
-| Vue globale KPIs | Task 7 — DashboardPanel._refresh_overview |
-| Progression chart | Task 7 — MiniBarChart |
-| Erreurs breakdown + patterns | Task 7 — DashboardPanel._refresh_errors |
-| Sessions historique | Task 7 — DashboardPanel._refresh_sessions |
-| Lesson catalog (predefined) | Task 4 — LESSON_CATALOG dict |
-| Lesson recommendations | Task 7 — DashboardPanel._refresh_lessons |
-| AI analysis on demand | Task 7 — DashboardPanel._run_ai_analysis |
+| Spec requirement             | Task implementing it                                       |
+| ---------------------------- | ---------------------------------------------------------- |
+| Profiles: name + avatar      | Task 6 — ProfileWizard step 1                              |
+| Multi-profile splash screen  | Task 6 — ProfileScreen.\_build_splash                      |
+| Wizard 3 steps               | Task 6 — ProfileWizard steps 1/2/3                         |
+| Settings per profile         | Task 2 + Task 8.5 (\_on_settings_changed saves to DB)      |
+| Auto-select single profile   | Task 6 — ProfileScreen (QTimer.singleShot → accept)        |
+| Migration from settings.json | Task 2 — migrate_if_needed                                 |
+| SQLite schema (5 tables)     | Task 1 — \_SCHEMA + Database class                         |
+| Real-time [brackets] parsing | Task 4 — StatsEngine.parse_errors + \_ERROR_RE             |
+| Exchange recording           | Task 4 — StatsEngine.record_exchange                       |
+| End-of-session LLM analysis  | Task 4 — StatsEngine.end_session + \_analyze_session_async |
+| error_patterns aggregation   | Task 1 — record_errors (INSERT OR REPLACE)                 |
+| User name in system prompt   | Task 3 — build_system_prompt(user_name=)                   |
+| Session / Dashboard tabs     | Task 8 — QStackedWidget + tab buttons                      |
+| Vue globale KPIs             | Task 7 — DashboardPanel.\_refresh_overview                 |
+| Progression chart            | Task 7 — MiniBarChart                                      |
+| Erreurs breakdown + patterns | Task 7 — DashboardPanel.\_refresh_errors                   |
+| Sessions historique          | Task 7 — DashboardPanel.\_refresh_sessions                 |
+| Lesson catalog (predefined)  | Task 4 — LESSON_CATALOG dict                               |
+| Lesson recommendations       | Task 7 — DashboardPanel.\_refresh_lessons                  |
+| AI analysis on demand        | Task 7 — DashboardPanel.\_run_ai_analysis                  |
 
 All 20 spec requirements covered. ✓
 

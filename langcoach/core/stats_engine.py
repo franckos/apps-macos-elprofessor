@@ -92,6 +92,10 @@ class StatsEngine:
         self._session_id: Optional[str] = None
         self._exchange_count = 0
         self._error_count = 0
+        self._memory_manager = None
+
+    def set_memory_manager(self, memory_manager):
+        self._memory_manager = memory_manager
 
     def start_session(self, profile: dict, language: str, level: str, topic: str) -> str:
         self._profile = profile
@@ -157,70 +161,116 @@ class StatsEngine:
             logger.warning(f"Génération du titre échouée : {e}")
 
     def analyze_session_by_id(self, session_id: str, on_done):
-        """Analyse à la demande d'une session spécifique. Appelle on_done(score, summary)."""
+        """Analyse à la demande d'une session. Appelle on_done(score, analysis_dict)."""
+        _empty = {"summary": "LLM non disponible.", "errors": [], "improvements": [], "vocabulary": []}
         if not self._llm:
-            on_done(None, "LLM non disponible.")
+            on_done(None, _empty)
             return
 
         def run():
             try:
                 session = self._db.get_session(session_id)
                 if not session:
-                    on_done(None, "Session introuvable.")
+                    on_done(None, {"summary": "Session introuvable.", "errors": [], "improvements": [], "vocabulary": []})
                     return
                 exchanges = self._db.get_session_exchanges(session_id)
                 if not exchanges:
-                    on_done(None, "Aucun échange à analyser.")
+                    on_done(None, {"summary": "Aucun échange à analyser.", "errors": [], "improvements": [], "vocabulary": []})
                     return
-                convo = "\n".join(
-                    f"Apprenant : {e['user_text']}\nCoach : {e['ai_response'][:200]}"
-                    for e in exchanges[:10]
-                )
-                prompt = (
-                    f"Analyse cette séance d'apprentissage. Réponds UNIQUEMENT avec un objet JSON valide.\n\n"
-                    f"Séance :\n"
-                    f"- Langue : {session['language']} ({session['level']})\n"
-                    f"- Sujet : {session['topic']}\n"
-                    f"- Échanges : {session['exchange_count']}\n"
-                    f"- Erreurs : {session['error_count']}\n\n"
-                    f"Résumé de la conversation :\n{convo[:1200]}\n\n"
-                    f"Réponds avec UNIQUEMENT ce JSON (pas d'autre texte) :\n"
-                    f'{{\"quality_score\": 0.75, \"summary\": \"2-3 phrases en français sur la qualité et les points à améliorer.\"}}\n\n'
-                    f"quality_score : de 0.0 (très mauvais) à 1.0 (excellent). summary : en français, bienveillant."
-                )
+                prompt = self._build_full_analysis_prompt(session, exchanges)
                 response = self._llm.chat_oneshot(
-                    "Tu es un coach de langue qui analyse des séances. Réponds toujours en JSON valide.",
+                    "Tu es un coach de langue expert. Tu analyses des séances et fournis des rapports détaillés. Réponds toujours en JSON valide.",
                     prompt,
                 )
                 if response:
-                    score, summary = self._parse_analysis_response(response)
-                    self._db.update_session_summary(session_id, score, summary)
-                    on_done(score, summary)
+                    score, analysis = self._parse_analysis_response(response)
+                    self._db.update_session_summary(session_id, score, analysis["summary"])
+                    on_done(score, analysis)
                 else:
-                    on_done(None, "Analyse non disponible.")
+                    on_done(None, {"summary": "Analyse non disponible.", "errors": [], "improvements": [], "vocabulary": []})
             except Exception as e:
-                logger.error(f"Analyse à la demande échouée : {e}")
-                on_done(None, f"Erreur : {e}")
+                logger.error(f"Analyse échouée : {e}")
+                on_done(None, {"summary": f"Erreur : {e}", "errors": [], "improvements": [], "vocabulary": []})
 
         threading.Thread(target=run, daemon=True).start()
 
-    def end_session(self):
+    def end_session(self, on_memory_suggestions=None):
         if not self._session_id:
             return
         session_id = self._session_id   # capture before reset
         exchange_count = self._exchange_count
+        profile = self._profile
         self._db.close_session(session_id, quality_score=None, summary=None)
         # Launch background LLM analysis if enough data
-        if exchange_count >= 3 and self._llm and self._profile:
+        if exchange_count >= 3 and self._llm and profile:
             t = threading.Thread(
                 target=self._analyze_session_async,
                 args=(session_id,),
                 daemon=True,
             )
             t.start()
+        if self._memory_manager:
+            exchanges = self._db.get_session_exchanges(session_id)
+            self._memory_manager.extract_suggestions_async(
+                profile["id"], session_id, exchanges,
+                on_done=on_memory_suggestions,
+            )
         self._session_id = None
         self._exchange_count = 0
         self._error_count = 0
+
+    def analyze_and_extract_async(self, on_done):
+        """Used by 'Analyser' button. Calls on_done(score, analysis_dict, suggestions_list)."""
+        if not self._session_id:
+            on_done(None, {"summary": "Aucune session en cours.", "errors": [], "improvements": [], "vocabulary": []}, [])
+            return
+
+        session_id = self._session_id
+        profile = self._profile
+        exchange_count = self._exchange_count
+
+        self._db.close_session(session_id, quality_score=None, summary=None)
+        self._session_id = None
+        self._exchange_count = 0
+        self._error_count = 0
+
+        if not self._llm or not profile:
+            on_done(None, {"summary": "LLM non disponible.", "errors": [], "improvements": [], "vocabulary": []}, [])
+            return
+
+        analysis_result = [None, None]   # [score, analysis_dict]
+        done_events = [False, False]     # [analysis_done, extraction_done]
+        _done_lock = threading.Lock()
+
+        def _check_both_done():
+            with _done_lock:
+                if all(done_events):
+                    score, analysis = analysis_result
+                    suggestions = self._db.list_memory_suggestions(profile["id"])
+                    on_done(score, analysis, suggestions)
+                    done_events[0] = False  # prevent second call
+
+        def _on_analysis(score, analysis):
+            analysis_result[0] = score
+            analysis_result[1] = analysis
+            done_events[0] = True
+            _check_both_done()
+
+        def _on_extraction(count):
+            done_events[1] = True
+            _check_both_done()
+
+        self.analyze_session_by_id(session_id, _on_analysis)
+
+        if self._memory_manager and exchange_count >= 3:
+            exchanges = self._db.get_session_exchanges(session_id)
+            self._memory_manager.extract_suggestions_async(
+                profile["id"], session_id, exchanges,
+                on_done=_on_extraction,
+            )
+        else:
+            done_events[1] = True
+            _check_both_done()
 
     def _analyze_session_async(self, session_id: str):
         session = self._db.get_session(session_id)
@@ -231,8 +281,8 @@ class StatsEngine:
         try:
             response = self._llm.chat(prompt)
             if response:
-                score, summary = self._parse_analysis_response(response)
-                self._db.close_session(session_id, quality_score=score, summary=summary)
+                score, analysis = self._parse_analysis_response(response)
+                self._db.close_session(session_id, quality_score=score, summary=analysis["summary"])
         except Exception as e:
             logger.error(f"Session analysis failed: {e}")
 
@@ -260,16 +310,51 @@ summary: Write in French. Be encouraging but honest."""
 
     @staticmethod
     def _parse_analysis_response(text: str) -> tuple:
+        """Returns (score: float, analysis: dict) with full structured data."""
+        empty = {"summary": "", "errors": [], "improvements": [], "vocabulary": []}
         try:
-            match = re.search(r'\{.*?\}', text, re.DOTALL)
+            match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
                 data = json.loads(match.group())
                 score = max(0.0, min(1.0, float(data.get("quality_score", 0.5))))
-                summary = str(data.get("summary", ""))
-                return score, summary
+                analysis = {
+                    "summary": str(data.get("summary", "")),
+                    "errors": data.get("errors", []) if isinstance(data.get("errors"), list) else [],
+                    "improvements": data.get("improvements", []) if isinstance(data.get("improvements"), list) else [],
+                    "vocabulary": data.get("vocabulary", []) if isinstance(data.get("vocabulary"), list) else [],
+                }
+                return score, analysis
         except (json.JSONDecodeError, ValueError, KeyError):
             pass
-        return 0.5, ""
+        return 0.5, empty
+
+    def _build_full_analysis_prompt(self, session: dict, exchanges: list) -> str:
+        """Builds the enriched analysis prompt used by 'Analyser' button."""
+        convo = "\n".join(
+            f"Apprenant : {e['user_text']}\nCoach : {e['ai_response'][:200]}"
+            for e in exchanges[:10]
+        )
+        return (
+            "Analyse cette séance d'apprentissage de langue. Réponds UNIQUEMENT avec un objet JSON valide.\n\n"
+            f"Séance :\n"
+            f"- Langue : {session['language']} ({session['level']})\n"
+            f"- Sujet : {session['topic']}\n"
+            f"- Échanges : {session['exchange_count']}\n"
+            f"- Erreurs détectées : {session['error_count']}\n\n"
+            f"Conversation :\n{convo[:2000]}\n\n"
+            "Réponds avec UNIQUEMENT ce JSON (pas d'autre texte) :\n"
+            '{"quality_score": 0.75, '
+            '"summary": "2-3 phrases bienveillantes en français résumant la session.", '
+            '"errors": [{"original": "phrase originale", "corrected": "phrase corrigée", "type": "grammar", "rule": "nom de la règle"}], '
+            '"improvements": ["Axe d\'amélioration 1 en français", "Axe d\'amélioration 2 en français"], '
+            '"vocabulary": [{"word": "mot_anglais", "translation": "traduction française", "example": "exemple en anglais."}]}\n\n'
+            "Règles :\n"
+            "- quality_score : 0.0 (très mauvais) à 1.0 (excellent)\n"
+            "- summary : en français, bienveillant, 2-3 phrases\n"
+            "- errors : toutes les erreurs réelles corrigées dans la conversation (max 8), ou [] si aucune\n"
+            "- improvements : 2 à 4 axes d'amélioration concrets en français\n"
+            "- vocabulary : 3 à 6 mots/expressions importants de la conversation, avec traduction et exemple"
+        )
 
     def get_lesson_cards(self, profile_id: str, threshold: int = 5) -> list:
         """Returns lesson cards for error patterns at or above threshold, ordered by count."""

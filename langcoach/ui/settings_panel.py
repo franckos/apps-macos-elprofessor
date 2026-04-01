@@ -71,10 +71,10 @@ class SettingsPanel(QWidget):
         layout.setSpacing(T["spacing_lg"])
 
         # Sections
-        layout.addWidget(self._section("🌐  Language"))
+        layout.addWidget(self._section("LANGUE"))
         layout.addWidget(self._build_language_selector())
 
-        layout.addWidget(self._section("🎓  Coach"))
+        layout.addWidget(self._section("COACH"))
         self._coach_container = QWidget()
         self._coach_container.setStyleSheet("background: transparent;")
         self._coach_layout = QVBoxLayout(self._coach_container)
@@ -83,27 +83,30 @@ class SettingsPanel(QWidget):
         self._rebuild_coach_selector()
         layout.addWidget(self._coach_container)
 
-        layout.addWidget(self._section("📊  Level"))
+        layout.addWidget(self._section("NIVEAU"))
         layout.addWidget(self._build_level_selector())
 
-        layout.addWidget(self._section("🎭  Teacher Style"))
+        layout.addWidget(self._section("STYLE"))
         layout.addWidget(self._build_style_selector())
 
-        layout.addWidget(self._section("💬  Topic"))
+        layout.addWidget(self._section("SUJET"))
         layout.addWidget(self._build_topic_selector())
 
-        layout.addWidget(self._section("🗣  Your Native Language"))
+        layout.addWidget(self._section("LANGUE MATERNELLE"))
         layout.addWidget(self._build_native_lang_selector())
 
-        layout.addWidget(self._section("🎙  Input Mode"))
+        layout.addWidget(self._section("MODE DE SAISIE"))
         layout.addWidget(self._build_input_mode_selector())
 
-        layout.addWidget(self._section("👁  Display"))
+        layout.addWidget(self._section("AFFICHAGE"))
         layout.addWidget(self._build_display_options())
 
         layout.addStretch()
 
-        layout.addWidget(self._section("⬆  App"))
+        layout.addWidget(self._section("MÉMOIRES"))
+        layout.addWidget(self._build_memories_section())
+
+        layout.addWidget(self._section("APPLICATION"))
         layout.addWidget(self._build_update_section())
 
         scroll.setWidget(content)
@@ -123,7 +126,7 @@ class SettingsPanel(QWidget):
         layout = QHBoxLayout(header)
         layout.setContentsMargins(T["spacing_lg"], 0, T["spacing_lg"], 0)
 
-        title = QLabel("Settings")
+        title = QLabel("Paramètres")
         title.setFont(QFont(T["font_display"], T["font_size_lg"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent; border: none;")
         layout.addWidget(title, 1)
@@ -269,11 +272,15 @@ class SettingsPanel(QWidget):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(10)
 
-        emoji = QLabel(style["emoji"])
-        emoji.setFont(QFont(T["font_body"], T["font_size_lg"]))
-        emoji.setStyleSheet("background: transparent; border: none;")
-        emoji.setFixedWidth(28)
-        layout.addWidget(emoji)
+        initial = QLabel(style["label"][0].upper())
+        initial.setFont(QFont(T["font_mono"], T["font_size_sm"]))
+        initial.setFixedSize(24, 24)
+        initial.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        initial.setStyleSheet(
+            f"background: {T['accent_soft']}; color: {T['accent']}; "
+            f"border: 1px solid {T['accent']}; border-radius: 4px;"
+        )
+        layout.addWidget(initial)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -554,7 +561,7 @@ class SettingsPanel(QWidget):
         """)
         layout.addWidget(btn)
 
-        update_btn = QPushButton("⬆  Mettre à jour")
+        update_btn = QPushButton("Mettre à jour")
         update_btn.setFixedHeight(36)
         update_btn.setVisible(False)
         update_btn.setStyleSheet(f"""
@@ -632,3 +639,66 @@ class SettingsPanel(QWidget):
         self.settings[key] = value
         if self.on_settings_changed:
             self.on_settings_changed(self.settings.copy())
+
+    def _build_memories_section(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        desc = QLabel("Faits personnels injectés dans le prompt pour personnaliser vos sessions.")
+        desc.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        desc.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        btn = QPushButton("Gérer les mémoires →")
+        btn.setFixedHeight(36)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['bg_card']};
+                color: {T['text_primary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_md']}px;
+                padding: 0 16px;
+                font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{
+                border-color: {T['accent']};
+                background-color: {T['accent_soft']};
+                color: {T['accent']};
+            }}
+        """)
+        btn.clicked.connect(self._open_memory_dialog)
+        layout.addWidget(btn)
+
+        self._memory_suggestion_badge = QLabel("")
+        self._memory_suggestion_badge.setStyleSheet(
+            f"color: {T['accent']}; background: transparent; font-size: {T['font_size_xs']}px;"
+        )
+        self._memory_suggestion_badge.hide()
+        layout.addWidget(self._memory_suggestion_badge)
+
+        return w
+
+    def _open_memory_dialog(self):
+        if not hasattr(self, '_profile') or not self._profile:
+            return
+        from ui.memory_panel import MemoryDialog
+        dlg = MemoryDialog(self._db, self._profile, parent=self)
+        dlg.exec()
+
+    def set_profile_context(self, db, profile: dict):
+        """Called by MainWindow after init to provide profile context for the memory dialog."""
+        self._db = db
+        self._profile = profile
+
+    def update_suggestion_badge(self, count: int):
+        """Shows/hides a badge with pending suggestion count."""
+        if count > 0:
+            self._memory_suggestion_badge.setText(f"{count} suggestion(s) en attente")
+            self._memory_suggestion_badge.show()
+        else:
+            self._memory_suggestion_badge.hide()

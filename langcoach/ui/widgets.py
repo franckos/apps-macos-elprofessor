@@ -153,7 +153,7 @@ class ChatBubble(QWidget):
         time_row.addStretch()
 
         if not is_user:
-            self._replay_btn = QPushButton("🔊")
+            self._replay_btn = QPushButton("▶")
             self._replay_btn.setFixedSize(20, 20)
             self._replay_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             self._replay_btn.setToolTip("Rejouer")
@@ -162,7 +162,7 @@ class ChatBubble(QWidget):
                     background: transparent;
                     border: none;
                     color: rgba(255,255,255,0.25);
-                    font-size: 11px;
+                    font-size: 9px;
                     padding: 0;
                 }
                 QPushButton:hover { color: rgba(255,255,255,0.75); }

@@ -59,6 +59,7 @@ from config.settings import (
 )
 from core.database import Database
 from core.stats_engine import StatsEngine
+from core.memory_manager import MemoryManager
 from core.session import SessionManager, SessionState
 from ui.settings_panel import SettingsPanel
 from ui.dashboard_panel import DashboardPanel
@@ -70,6 +71,7 @@ from ui.widgets import (
     WaveformWidget,
     ToastNotification,
 )
+from ui.analysis_report import AnalysisReportWidget
 
 
 class MainWindow(QMainWindow):
@@ -81,6 +83,7 @@ class MainWindow(QMainWindow):
     sig_assistant_done = pyqtSignal(str)
     sig_models_ready = pyqtSignal(dict)
     sig_error = pyqtSignal(str)
+    sig_status_detail = pyqtSignal(str)
 
     def __init__(self, db: Database, profile: dict):
         super().__init__()
@@ -89,6 +92,7 @@ class MainWindow(QMainWindow):
         self.settings = profile.get("settings", load_settings())
         self.session = SessionManager()
         self._stats = StatsEngine(db=db, llm=None)  # llm injected after model init
+        self._memory_manager = MemoryManager(db=db, llm=None)
         self._current_ai_bubble = None
         self._current_ai_text = ""
         self._settings_visible = False
@@ -161,13 +165,12 @@ class MainWindow(QMainWindow):
         central.setStyleSheet(f"background-color: {T['bg_primary']};")
         self.setCentralWidget(central)
 
-        root = QHBoxLayout(central)
+        root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Sidebar ────────────────────────────────────────────
-        self._sidebar = self._build_sidebar()
-        root.addWidget(self._sidebar)
+        # No sidebar — info lives in settings panel
+        self._info_cards = {}
 
         # ── Main area ──────────────────────────────────────────
         main_area = QWidget()
@@ -188,16 +191,40 @@ class MainWindow(QMainWindow):
         self._main_stack = QStackedWidget()
         self._main_stack.setStyleSheet(f"background-color: {T['bg_primary']};")
 
-        # Session tab (existing chat + input bar)
+        # Session tab (topic picker + chat + input bar)
         session_widget = QWidget()
         session_widget.setStyleSheet(f"background-color: {T['bg_primary']};")
-        session_vlayout = QVBoxLayout(session_widget)
-        session_vlayout.setContentsMargins(0, 0, 0, 0)
-        session_vlayout.setSpacing(0)
+        session_outer_layout = QVBoxLayout(session_widget)
+        session_outer_layout.setContentsMargins(0, 0, 0, 0)
+        session_outer_layout.setSpacing(0)
+
+        # Inner stack: index 0 = topic picker, index 1 = chat area
+        self._session_stack = QStackedWidget()
+        self._session_stack.setStyleSheet(f"background-color: {T['bg_primary']};")
+
+        # Index 0: topic picker
+        self._topic_picker = self._build_topic_picker()
+        self._session_stack.addWidget(self._topic_picker)
+
+        # Index 1: chat area + input bar
+        chat_widget = QWidget()
+        chat_widget.setStyleSheet(f"background-color: {T['bg_primary']};")
+        chat_vlayout = QVBoxLayout(chat_widget)
+        chat_vlayout.setContentsMargins(0, 0, 0, 0)
+        chat_vlayout.setSpacing(0)
         self._chat_scroll = self._build_chat_area()
-        session_vlayout.addWidget(self._chat_scroll, 1)
-        input_bar = self._build_input_bar()
-        session_vlayout.addWidget(input_bar)
+        chat_vlayout.addWidget(self._chat_scroll, 1)
+        self._input_bar = self._build_input_bar()
+        chat_vlayout.addWidget(self._input_bar)
+        self._session_stack.addWidget(chat_widget)
+
+        # Index 2: analysis report
+        self._analysis_report = AnalysisReportWidget(db=self._db)
+        self._analysis_report.on_new_session = self._on_analysis_new_session
+        self._analysis_report.on_go_dashboard = self._on_analysis_go_dashboard
+        self._session_stack.addWidget(self._analysis_report)
+
+        session_outer_layout.addWidget(self._session_stack, 1)
         self._main_stack.addWidget(session_widget)
 
         # Dashboard tab
@@ -207,11 +234,122 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self._main_stack, 1)
         root.addWidget(main_area, 1)
 
+        # ── Bottom status bar ──────────────────────────────────
+        self._bottom_bar = self._build_bottom_bar()
+        root.addWidget(self._bottom_bar)
+
         # ── Settings panel (overlay) ───────────────────────────
         self._settings_panel = SettingsPanel(self.settings, self)
         self._settings_panel.setVisible(False)
         self._settings_panel.on_settings_changed = self._on_settings_changed
         self._settings_panel.on_close = self._toggle_settings
+
+    def _build_bottom_bar(self) -> QWidget:
+        """Bottom status bar — logo / engine state orbs / activity detail"""
+        bar = QWidget()
+        bar.setFixedHeight(T["bottom_bar_height"])
+        bar.setStyleSheet(
+            f"""
+            QWidget {{
+                background-color: {T['bg_secondary']};
+                border-top: 1px solid {T['border']};
+            }}
+        """
+        )
+
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(T["spacing_lg"], 0, T["spacing_lg"], 0)
+        layout.setSpacing(0)
+
+        # ── Logo ───────────────────────────────────────────────
+        logo = QLabel("echo")
+        logo.setFont(QFont(T["font_display"], T["font_size_md"]))
+        logo.setStyleSheet(
+            f"color: {T['accent']}; background: transparent; "
+            f"font-weight: 600; letter-spacing: 2px;"
+        )
+        layout.addWidget(logo)
+
+        # ── Separator ─────────────────────────────────────────
+        def _vsep():
+            s = QFrame()
+            s.setFrameShape(QFrame.Shape.VLine)
+            s.setFixedHeight(20)
+            s.setStyleSheet(f"color: {T['border']}; background: transparent;")
+            return s
+
+        layout.addSpacing(T["spacing_lg"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Main state orb + label ────────────────────────────
+        self._status_orb = StatusOrb()
+        layout.addWidget(self._status_orb)
+        layout.addSpacing(6)
+
+        self._status_label = QLabel("Initialisation…")
+        self._status_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        self._status_label.setFixedWidth(80)
+        layout.addWidget(self._status_label)
+
+        layout.addSpacing(T["spacing_md"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── STT orb ────────────────────────────────────────────
+        self._stt_orb = StatusOrb()
+        self._stt_orb.set_color(T["text_muted"])
+        layout.addWidget(self._stt_orb)
+        layout.addSpacing(4)
+
+        stt_lbl = QLabel("STT")
+        stt_lbl.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        stt_lbl.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(stt_lbl)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── LLM orb ────────────────────────────────────────────
+        self._llm_orb = StatusOrb()
+        self._llm_orb.set_color(T["text_muted"])
+        layout.addWidget(self._llm_orb)
+        layout.addSpacing(4)
+
+        llm_lbl = QLabel("LLM")
+        llm_lbl.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        llm_lbl.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(llm_lbl)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── TTS / Kokoro orb ───────────────────────────────────
+        self._tts_orb = StatusOrb()
+        self._tts_orb.set_color(T["text_muted"])
+        layout.addWidget(self._tts_orb)
+        layout.addSpacing(4)
+
+        self._tts_label = QLabel("TTS")
+        self._tts_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        self._tts_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(self._tts_label)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Waveform (compact) ────────────────────────────────
+        self._waveform = WaveformWidget()
+        self._waveform.setFixedSize(56, 24)
+        layout.addWidget(self._waveform)
+
+        layout.addSpacing(T["spacing_md"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Status detail (right, expandable) ─────────────────
+        self._status_detail_label = QLabel("")
+        self._status_detail_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        self._status_detail_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        self._status_detail_label.setMaximumWidth(420)
+        layout.addWidget(self._status_detail_label, 1)
+
+        return bar
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -254,10 +392,10 @@ class MainWindow(QMainWindow):
         self._status_orb = StatusOrb()
         orb_row.addWidget(self._status_orb)
 
-        self._status_label = QLabel("Initialisation…")
-        self._status_label.setFont(QFont(T["font_body"], T["font_size_sm"]))
-        self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
-        orb_row.addWidget(self._status_label, 1)
+        self._status_label_sidebar = QLabel("Initialisation…")
+        self._status_label_sidebar.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        self._status_label_sidebar.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        orb_row.addWidget(self._status_label_sidebar, 1)
         layout.addLayout(orb_row)
 
         layout.addSpacing(T["spacing_lg"])
@@ -366,13 +504,13 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ color: {T['text_primary']}; }}
         """
 
-        self._btn_tab_session = QPushButton("💬  Session")
+        self._btn_tab_session = QPushButton("Session")
         self._btn_tab_session.setFixedHeight(64)
         self._btn_tab_session.setStyleSheet(self._tab_active_style)
         self._btn_tab_session.clicked.connect(lambda: self._switch_tab(0))
         layout.addWidget(self._btn_tab_session)
 
-        self._btn_tab_dashboard = QPushButton("📈  Dashboard")
+        self._btn_tab_dashboard = QPushButton("Dashboard")
         self._btn_tab_dashboard.setFixedHeight(64)
         self._btn_tab_dashboard.setStyleSheet(self._tab_inactive_style)
         self._btn_tab_dashboard.clicked.connect(lambda: self._switch_tab(1))
@@ -389,14 +527,23 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; border-color: {T['accent']}; }}
             QPushButton:pressed {{ background-color: {T['accent_soft']}; }}
         """
-        self._btn_reset = QPushButton("↺  Nouvelle session")
+        self._btn_finir = QPushButton("Analyser")
+        self._btn_finir.setStyleSheet(btn_style)
+        self._btn_finir.setFixedHeight(36)
+        self._btn_finir.setToolTip("Analyser la session et extraire des mémoires")
+        self._btn_finir.clicked.connect(self._on_finir_analyser)
+        layout.addWidget(self._btn_finir)
+
+        layout.addSpacing(4)
+
+        self._btn_reset = QPushButton("↺  Nouveau")
         self._btn_reset.setStyleSheet(btn_style)
         self._btn_reset.setFixedHeight(36)
         self._btn_reset.setToolTip("Réinitialiser la conversation (R)")
         self._btn_reset.clicked.connect(self._on_reset)
         layout.addWidget(self._btn_reset)
 
-        self._btn_settings = QPushButton("⚙  Paramètres")
+        self._btn_settings = QPushButton("Paramètres")
         self._btn_settings.setStyleSheet(btn_style)
         self._btn_settings.setFixedHeight(36)
         self._btn_settings.setToolTip("Ouvrir les paramètres (S)")
@@ -465,9 +612,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(T["spacing_md"])
 
         # VAD toggle
-        self._btn_vad = AnimatedButton("◉  Auto")
+        self._btn_vad = AnimatedButton("Auto")
         self._btn_vad.setToolTip("Activer/désactiver la détection automatique (A)")
-        self._btn_vad.setFixedSize(90, 44)
+        self._btn_vad.setFixedSize(72, 44)
         self._btn_vad.setCheckable(True)
         self._btn_vad.clicked.connect(self._toggle_vad)
         layout.addWidget(self._btn_vad)
@@ -507,7 +654,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_send)
 
         # PTT button
-        self._btn_ptt = AnimatedButton("🎤  Parler")
+        self._btn_ptt = AnimatedButton("Parler")
         self._btn_ptt.setToolTip("Maintenir pour parler (Espace)")
         self._btn_ptt.setFixedSize(100, 44)
         self._btn_ptt.pressed.connect(self._on_ptt_press)
@@ -548,6 +695,7 @@ class MainWindow(QMainWindow):
         self.sig_assistant_done.connect(self._handle_ai_done)
         self.sig_models_ready.connect(self._handle_models_ready)
         self.sig_error.connect(self._handle_error)
+        self.sig_status_detail.connect(self._handle_status_detail)
         self._connect_session_signals()
 
     def _setup_shortcuts(self):
@@ -567,16 +715,31 @@ class MainWindow(QMainWindow):
         self._update_sidebar_info()
         self._update_session_title()
 
-        # Inject LLM into stats engine once models are ready
-        original_on_models_ready = self.session.on_models_ready
-
+        # Inject LLM into stats engine and memory manager once models are ready
         def _on_models_ready_with_llm(status: dict):
             self._stats._llm = self.session._llm
+            self._memory_manager._llm = self.session._llm
+            self._stats.set_memory_manager(self._memory_manager)
+            # Inject memories into LLM system prompt
+            memories = self._memory_manager.get_context_memories(self._profile["id"])
+            if memories:
+                from core.prompt_builder import build_system_prompt
+                prompt = build_system_prompt(
+                    self.settings,
+                    user_name=self._profile.get("name", ""),
+                    memories=memories,
+                )
+                self.session._llm.set_system_prompt(prompt)
             self.sig_models_ready.emit(status)
 
         self.session.on_models_ready = _on_models_ready_with_llm
         self.session.initialize(self.settings, profile=self._profile, stats=self._stats)
+        self._settings_panel.set_profile_context(self._db, self._profile)
         self._dashboard_panel.set_profile(self._profile)
+
+        # Show topic picker on startup
+        self._refresh_topic_picker()
+        self._session_stack.setCurrentIndex(0)
 
     # ── Slot handlers ─────────────────────────────────────────
 
@@ -595,17 +758,27 @@ class MainWindow(QMainWindow):
         self._status_orb.set_color(color)
         self._status_orb.set_animated(state in (SessionState.LISTENING, SessionState.PROCESSING, SessionState.SPEAKING))
 
+        # Individual engine orbs
+        self._stt_orb.set_animated(state == SessionState.LISTENING)
+        self._llm_orb.set_animated(state == SessionState.PROCESSING)
+        self._tts_orb.set_animated(state == SessionState.SPEAKING)
+
         if state == SessionState.LISTENING:
             self._waveform.start()
         else:
             self._waveform.stop()
 
+    def _handle_status_detail(self, msg: str):
+        self._status_detail_label.setText(msg)
+
     def _handle_models_ready(self, status: dict):
-        stt_ok = "✓" if status.get("stt") else "✗"
-        tts_ok = "✓" if status.get("tts") else "✗"
+        stt_ok = status.get("stt", False)
+        tts_ok = status.get("tts", False)
+        self._stt_orb.set_color(T["success"] if stt_ok else T["error"])
+        self._llm_orb.set_color(T["success"])
+        self._tts_orb.set_color(T["success"] if tts_ok else T["warning"])
         provider = self.session.tts_provider
-        self._model_badge.setText(f"STT {stt_ok}  LLM ✓  TTS {tts_ok}\n{provider}")
-        self._model_badge.setStyleSheet(f"color: {T['success']}; background: transparent;")
+        self._tts_label.setText(provider.capitalize() if provider not in ("none", "") else "TTS")
 
     def _coach_name(self) -> str:
         lang_key = self.settings.get("target_language", "english")
@@ -642,10 +815,10 @@ class MainWindow(QMainWindow):
     def _toggle_vad(self, checked: bool):
         if checked:
             self.session.start_listening_vad()
-            self._btn_vad.setText("◉  Actif")
+            self._btn_vad.setText("Actif")
         else:
             self.session.stop_listening_vad()
-            self._btn_vad.setText("◉  Auto")
+            self._btn_vad.setText("Auto")
 
     def _on_ptt_press(self):
         if not self._ptt_held:
@@ -667,13 +840,17 @@ class MainWindow(QMainWindow):
         self.session.stop_speaking()
 
     def _on_reset(self):
-        # Clear chat
+        """Quick new session — shows topic picker without analysis."""
+        self._btn_finir.setEnabled(True)
         while self._chat_layout.count() > 1:
             item = self._chat_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
         self.session.reset_session()
-        self._show_toast("Session réinitialisée", kind="info")
+        self._refresh_topic_picker()
+        if hasattr(self, '_session_stack'):
+            self._session_stack.setCurrentIndex(0)
+        self._show_toast("Nouvelle session", kind="info")
 
     def _toggle_settings(self):
         self._settings_visible = not self._settings_visible
@@ -685,10 +862,10 @@ class MainWindow(QMainWindow):
             self._settings_panel.move(self.width() - 400, 0)
             self._settings_panel.raise_()
             self._settings_panel.show()
-            self._btn_settings.setText("✕  Fermer")
+            self._btn_settings.setText("Fermer")
         else:
             self._settings_panel.hide()
-            self._btn_settings.setText("⚙  Paramètres")
+            self._btn_settings.setText("Paramètres")
 
     def _on_settings_changed(self, new_settings: dict):
         self.settings = new_settings
@@ -728,7 +905,7 @@ class MainWindow(QMainWindow):
         topic = self.settings.get("topic", "Free talk")
         name = self._profile.get("name", "")
         avatar = self._profile.get("avatar", "🧑")
-        self.setWindowTitle(f"Echo — {name} · {lang} · {level} · {topic}")
+        self.setWindowTitle(f"El Profesor — {name} · {lang} · {level} · {topic}")
         if hasattr(self, "_btn_profile"):
             self._btn_profile.setText(f"{avatar}  {name}  ▾")
 
@@ -736,7 +913,8 @@ class MainWindow(QMainWindow):
 
     def _on_profile_menu(self):
         menu = QMenu(self)
-        menu.setStyleSheet(f"""
+        menu.setStyleSheet(
+            f"""
             QMenu {{
                 background-color: {T['bg_card']}; color: {T['text_primary']};
                 border: 1px solid {T['border']}; border-radius: {T['radius_md']}px;
@@ -745,15 +923,14 @@ class MainWindow(QMainWindow):
             QMenu::item {{ padding: 10px 20px; }}
             QMenu::item:selected {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; }}
             QMenu::separator {{ height: 1px; background: {T['border']}; margin: 4px 12px; }}
-        """)
-        edit_action = menu.addAction(f"✏️  Modifier le profil")
+        """
+        )
+        edit_action = menu.addAction("Modifier le profil")
         menu.addSeparator()
-        switch_action = menu.addAction("🔄  Changer de profil")
-        new_action = menu.addAction("＋  Nouveau profil")
+        switch_action = menu.addAction("Changer de profil")
+        new_action = menu.addAction("Nouveau profil")
 
-        action = menu.exec(self._btn_profile.mapToGlobal(
-            self._btn_profile.rect().bottomLeft()
-        ))
+        action = menu.exec(self._btn_profile.mapToGlobal(self._btn_profile.rect().bottomLeft()))
         if action == edit_action:
             self._edit_profile()
         elif action == switch_action:
@@ -808,9 +985,10 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
-        # New session + stats
+        # New session + stats + memory manager
         self.session = SessionManager()
         self._stats = StatsEngine(db=self._db, llm=None)
+        self._memory_manager = MemoryManager(db=self._db, llm=None)
         self._connect_session_signals()
         self._start_session()
         self._show_toast(f"Profil : {new_profile['name']}", kind="success")
@@ -822,6 +1000,7 @@ class MainWindow(QMainWindow):
         self.session.on_assistant_done = lambda t: self.sig_assistant_done.emit(t)
         self.session.on_models_ready = lambda s: self.sig_models_ready.emit(s)
         self.session.on_error = lambda e: self.sig_error.emit(e)
+        self.session.on_status_detail = lambda m: self.sig_status_detail.emit(m)
 
     def _scroll_to_bottom(self):
         QTimer.singleShot(
@@ -830,10 +1009,250 @@ class MainWindow(QMainWindow):
 
     def _show_toast(self, message: str, kind: str = "info"):
         toast = ToastNotification(message, kind=kind)
-        global_pos = self.mapToGlobal(
-            self.rect().topRight()
-        )
+        global_pos = self.mapToGlobal(self.rect().topRight())
         toast.show_at(global_pos.x() - 340, global_pos.y() + 16)
+
+    # ── Finir et Analyser ─────────────────────────────────────
+
+    def _on_finir_analyser(self):
+        """Triggers quality analysis + memory extraction, then shows analysis report screen."""
+        if not self._stats.session_id:
+            self._show_toast("Aucune session active à analyser", kind="info")
+            return
+
+        self._btn_finir.setEnabled(False)
+        self._btn_finir.setText("Analyse…")
+
+        from PyQt6.QtCore import QObject, pyqtSignal as _sig
+
+        class Emitter(QObject):
+            done = _sig(object, object, object)
+
+        emitter = Emitter()
+        emitter.done.connect(self._on_finir_result)
+        self._finir_emitter = emitter  # keep alive
+
+        def _on_done(score, analysis, suggestions):
+            emitter.done.emit(score, analysis, suggestions)
+
+        self._stats.analyze_and_extract_async(_on_done)
+
+    def _on_finir_result(self, score, analysis, suggestions):
+        self._btn_finir.setEnabled(True)
+        self._btn_finir.setText("Analyser")
+
+        session_info = {
+            "language": self.settings.get("target_language", ""),
+            "level": self.settings.get("level", ""),
+            "topic": self.settings.get("topic", ""),
+        }
+        self._analysis_report.load_report(score, analysis, suggestions, session_info)
+        self._session_stack.setCurrentIndex(2)
+
+        # Update memory badge if suggestions exist
+        if suggestions and hasattr(self, '_settings_panel'):
+            self._settings_panel.update_suggestion_badge(len(suggestions))
+
+    def _on_analysis_new_session(self):
+        """Called from analysis report 'Nouvelle discussion' button."""
+        while self._chat_layout.count() > 1:
+            item = self._chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.session.reset_session()
+        self._refresh_topic_picker()
+        self._session_stack.setCurrentIndex(0)
+
+    def _on_analysis_go_dashboard(self):
+        """Called from analysis report 'Tableau de bord' button."""
+        self._switch_tab(1)
+
+    # ── Topic picker ──────────────────────────────────────────
+
+    def _build_topic_picker(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet(f"background-color: {T['bg_primary']};")
+        from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit
+        from PyQt6.QtGui import QFont
+        from PyQt6.QtCore import Qt
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(T["spacing_xl"], T["spacing_xl"], T["spacing_xl"], T["spacing_xl"])
+        layout.setSpacing(T["spacing_lg"])
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        title = QLabel("Choisissez un thème pour cette session")
+        title.setFont(QFont(T["font_display"], T["font_size_xl"]))
+        title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
+        layout.addWidget(title)
+
+        sub = QLabel("Ou saisissez un thème libre en bas")
+        sub.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        sub.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(sub)
+
+        layout.addSpacing(T["spacing_md"])
+
+        # Memory-based suggestions block (populated at runtime by _refresh_topic_picker)
+        self._memory_topics_section = QWidget()
+        self._memory_topics_section.setStyleSheet("background: transparent;")
+        self._memory_topics_layout = QVBoxLayout(self._memory_topics_section)
+        self._memory_topics_layout.setContentsMargins(0, 0, 0, 0)
+        self._memory_topics_layout.setSpacing(8)
+        layout.addWidget(self._memory_topics_section)
+
+        # Default topics
+        default_label = QLabel("THÈMES HABITUELS")
+        default_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        default_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent; letter-spacing: 1px;")
+        layout.addWidget(default_label)
+
+        default_topics = [
+            "Conversation libre", "Actualités", "Voyage", "Travail",
+            "Culture & cinéma", "Sport", "Gastronomie", "Technologie",
+        ]
+        topics_grid = QWidget()
+        topics_grid.setStyleSheet("background: transparent;")
+        grid_layout = QHBoxLayout(topics_grid)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        grid_layout.setSpacing(8)
+        grid_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        btn_style = f"""
+            QPushButton {{
+                background-color: {T['bg_card']};
+                color: {T['text_secondary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_md']}px;
+                padding: 0 16px;
+                font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QPushButton:hover {{
+                background-color: {T['accent_soft']};
+                color: {T['accent']};
+                border-color: {T['accent']};
+            }}
+        """
+        for topic in default_topics:
+            btn = QPushButton(topic)
+            btn.setFixedHeight(36)
+            btn.setStyleSheet(btn_style)
+            btn.clicked.connect(lambda _, t=topic: self._start_with_topic(t))
+            grid_layout.addWidget(btn)
+
+        grid_layout.addStretch()
+        layout.addWidget(topics_grid)
+
+        layout.addStretch()
+
+        # Free input row
+        free_row = QHBoxLayout()
+        self._topic_free_input = QLineEdit()
+        self._topic_free_input.setPlaceholderText("Ou saisir un thème libre…")
+        self._topic_free_input.setFixedHeight(44)
+        self._topic_free_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {T['bg_card']};
+                color: {T['text_primary']};
+                border: 1px solid {T['border']};
+                border-radius: {T['radius_md']}px;
+                padding: 0 {T['spacing_md']}px;
+                font-size: {T['font_size_md']}px;
+                font-family: '{T['font_body']}';
+            }}
+            QLineEdit:focus {{ border-color: {T['border_active']}; }}
+        """)
+        self._topic_free_input.returnPressed.connect(self._start_with_free_topic)
+        free_row.addWidget(self._topic_free_input, 1)
+
+        start_btn = QPushButton("Démarrer →")
+        start_btn.setFixedHeight(44)
+        start_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T['accent']}; color: white;
+                border: none; border-radius: {T['radius_md']}px;
+                padding: 0 20px; font-size: {T['font_size_sm']}px;
+                font-family: '{T['font_body']}'; font-weight: 600;
+            }}
+        """)
+        start_btn.clicked.connect(self._start_with_free_topic)
+        free_row.addWidget(start_btn)
+        layout.addLayout(free_row)
+
+        return w
+
+    def _refresh_topic_picker(self):
+        """Repopulates memory-based suggestions in topic picker."""
+        if not hasattr(self, '_memory_topics_layout'):
+            return
+        while self._memory_topics_layout.count():
+            item = self._memory_topics_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not self._profile:
+            self._memory_topics_section.setVisible(False)
+            return
+
+        last_sessions = self._db.list_sessions(self._profile["id"], limit=3)
+        suggestions = self._memory_manager.get_topic_suggestions(self._profile["id"], last_sessions)
+
+        if suggestions:
+            from PyQt6.QtWidgets import QLabel, QWidget, QHBoxLayout, QPushButton
+            from PyQt6.QtGui import QFont
+            mem_label = QLabel("ISSUS DE VOS MÉMOIRES")
+            mem_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+            mem_label.setStyleSheet(f"color: {T['accent']}; background: transparent; letter-spacing: 1px;")
+            self._memory_topics_layout.addWidget(mem_label)
+
+            row_w = QWidget()
+            row_w.setStyleSheet("background: transparent;")
+            from PyQt6.QtCore import Qt
+            row_l = QHBoxLayout(row_w)
+            row_l.setContentsMargins(0, 0, 0, 0)
+            row_l.setSpacing(8)
+            row_l.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+            for s in suggestions:
+                btn = QPushButton(s)
+                btn.setFixedHeight(36)
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {T['accent_soft']};
+                        color: {T['accent']};
+                        border: 1px solid {T['accent']};
+                        border-radius: {T['radius_md']}px;
+                        padding: 0 16px;
+                        font-size: {T['font_size_sm']}px;
+                        font-family: '{T['font_body']}';
+                    }}
+                    QPushButton:hover {{ background-color: {T['accent']}; color: white; }}
+                """)
+                btn.clicked.connect(lambda _, t=s: self._start_with_topic(t))
+                row_l.addWidget(btn)
+
+            row_l.addStretch()
+            self._memory_topics_layout.addWidget(row_w)
+            self._memory_topics_layout.addSpacing(T["spacing_md"])
+
+        self._memory_topics_section.setVisible(bool(suggestions))
+
+    def _start_with_topic(self, topic: str):
+        """Sets the topic in settings and switches to chat screen."""
+        self.settings["topic"] = topic
+        self._db.update_profile_settings(self._profile["id"], self.settings)
+        self.session.update_settings(self.settings)
+        self._update_sidebar_info()
+        self._session_stack.setCurrentIndex(1)
+
+    def _start_with_free_topic(self):
+        topic = self._topic_free_input.text().strip()
+        if not topic:
+            topic = "Conversation libre"
+        self._topic_free_input.clear()
+        self._start_with_topic(topic)
+
+    # ── Window events ─────────────────────────────────────────
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

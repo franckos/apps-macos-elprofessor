@@ -86,3 +86,49 @@ def test_get_lesson_cards_threshold(db, profile):
     cards = engine.get_lesson_cards(profile["id"], threshold=5)
     assert len(cards) >= 1
     assert cards[0]["pattern"]["rule"] == "simple past"
+
+
+def test_parse_analysis_response_full_json():
+    """New _parse_analysis_response returns (score, analysis_dict) with all fields."""
+    text = '''{
+        "quality_score": 0.82,
+        "summary": "Bonne session, continue comme ça.",
+        "errors": [{"original": "I go yesterday", "corrected": "I went yesterday", "type": "tense", "rule": "simple past"}],
+        "improvements": ["Travailler le prétérit", "Utiliser des connecteurs"],
+        "vocabulary": [{"word": "commute", "translation": "trajet", "example": "My commute takes 30 min."}]
+    }'''
+    score, analysis = StatsEngine._parse_analysis_response(text)
+    assert score == pytest.approx(0.82)
+    assert analysis["summary"] == "Bonne session, continue comme ça."
+    assert len(analysis["errors"]) == 1
+    assert analysis["errors"][0]["original"] == "I go yesterday"
+    assert len(analysis["improvements"]) == 2
+    assert len(analysis["vocabulary"]) == 1
+    assert analysis["vocabulary"][0]["word"] == "commute"
+
+
+def test_parse_analysis_response_fallback():
+    """Returns safe defaults when JSON is malformed."""
+    score, analysis = StatsEngine._parse_analysis_response("not json at all")
+    assert score == pytest.approx(0.5)
+    assert analysis["summary"] == ""
+    assert analysis["errors"] == []
+    assert analysis["improvements"] == []
+    assert analysis["vocabulary"] == []
+
+
+def test_build_full_analysis_prompt_contains_conversation():
+    """Prompt includes conversation excerpt and all required JSON fields."""
+    engine = StatsEngine(db=None, llm=None)
+    session = {
+        "language": "english", "level": "B1", "topic": "Travel",
+        "exchange_count": 5, "error_count": 2,
+    }
+    exchanges = [
+        {"user_text": "I go to Paris yesterday", "ai_response": "Great! [tense: ...]"},
+    ]
+    prompt = engine._build_full_analysis_prompt(session, exchanges)
+    assert "I go to Paris yesterday" in prompt
+    assert "quality_score" in prompt
+    assert "improvements" in prompt
+    assert "vocabulary" in prompt
