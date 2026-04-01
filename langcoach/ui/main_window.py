@@ -164,13 +164,12 @@ class MainWindow(QMainWindow):
         central.setStyleSheet(f"background-color: {T['bg_primary']};")
         self.setCentralWidget(central)
 
-        root = QHBoxLayout(central)
+        root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Sidebar ────────────────────────────────────────────
-        self._sidebar = self._build_sidebar()
-        root.addWidget(self._sidebar)
+        # No sidebar — info lives in settings panel
+        self._info_cards = {}
 
         # ── Main area ──────────────────────────────────────────
         main_area = QWidget()
@@ -228,11 +227,122 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self._main_stack, 1)
         root.addWidget(main_area, 1)
 
+        # ── Bottom status bar ──────────────────────────────────
+        self._bottom_bar = self._build_bottom_bar()
+        root.addWidget(self._bottom_bar)
+
         # ── Settings panel (overlay) ───────────────────────────
         self._settings_panel = SettingsPanel(self.settings, self)
         self._settings_panel.setVisible(False)
         self._settings_panel.on_settings_changed = self._on_settings_changed
         self._settings_panel.on_close = self._toggle_settings
+
+    def _build_bottom_bar(self) -> QWidget:
+        """Bottom status bar — logo / engine state orbs / activity detail"""
+        bar = QWidget()
+        bar.setFixedHeight(T["bottom_bar_height"])
+        bar.setStyleSheet(
+            f"""
+            QWidget {{
+                background-color: {T['bg_secondary']};
+                border-top: 1px solid {T['border']};
+            }}
+        """
+        )
+
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(T["spacing_lg"], 0, T["spacing_lg"], 0)
+        layout.setSpacing(0)
+
+        # ── Logo ───────────────────────────────────────────────
+        logo = QLabel("echo")
+        logo.setFont(QFont(T["font_display"], T["font_size_md"]))
+        logo.setStyleSheet(
+            f"color: {T['accent']}; background: transparent; "
+            f"font-weight: 600; letter-spacing: 2px;"
+        )
+        layout.addWidget(logo)
+
+        # ── Separator ─────────────────────────────────────────
+        def _vsep():
+            s = QFrame()
+            s.setFrameShape(QFrame.Shape.VLine)
+            s.setFixedHeight(20)
+            s.setStyleSheet(f"color: {T['border']}; background: transparent;")
+            return s
+
+        layout.addSpacing(T["spacing_lg"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Main state orb + label ────────────────────────────
+        self._status_orb = StatusOrb()
+        layout.addWidget(self._status_orb)
+        layout.addSpacing(6)
+
+        self._status_label = QLabel("Initialisation…")
+        self._status_label.setFont(QFont(T["font_body"], T["font_size_xs"]))
+        self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        self._status_label.setFixedWidth(80)
+        layout.addWidget(self._status_label)
+
+        layout.addSpacing(T["spacing_md"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── STT orb ────────────────────────────────────────────
+        self._stt_orb = StatusOrb()
+        self._stt_orb.set_color(T["text_muted"])
+        layout.addWidget(self._stt_orb)
+        layout.addSpacing(4)
+
+        stt_lbl = QLabel("STT")
+        stt_lbl.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        stt_lbl.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(stt_lbl)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── LLM orb ────────────────────────────────────────────
+        self._llm_orb = StatusOrb()
+        self._llm_orb.set_color(T["text_muted"])
+        layout.addWidget(self._llm_orb)
+        layout.addSpacing(4)
+
+        llm_lbl = QLabel("LLM")
+        llm_lbl.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        llm_lbl.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(llm_lbl)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── TTS / Kokoro orb ───────────────────────────────────
+        self._tts_orb = StatusOrb()
+        self._tts_orb.set_color(T["text_muted"])
+        layout.addWidget(self._tts_orb)
+        layout.addSpacing(4)
+
+        self._tts_label = QLabel("TTS")
+        self._tts_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        self._tts_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        layout.addWidget(self._tts_label)
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Waveform (compact) ────────────────────────────────
+        self._waveform = WaveformWidget()
+        self._waveform.setFixedSize(56, 24)
+        layout.addWidget(self._waveform)
+
+        layout.addSpacing(T["spacing_md"])
+        layout.addWidget(_vsep())
+        layout.addSpacing(T["spacing_md"])
+
+        # ── Status detail (right, expandable) ─────────────────
+        self._status_detail_label = QLabel("")
+        self._status_detail_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        self._status_detail_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        self._status_detail_label.setMaximumWidth(420)
+        layout.addWidget(self._status_detail_label, 1)
+
+        return bar
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -275,17 +385,11 @@ class MainWindow(QMainWindow):
         self._status_orb = StatusOrb()
         orb_row.addWidget(self._status_orb)
 
-        self._status_label = QLabel("Initialisation…")
-        self._status_label.setFont(QFont(T["font_body"], T["font_size_sm"]))
-        self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
-        orb_row.addWidget(self._status_label, 1)
+        self._status_label_sidebar = QLabel("Initialisation…")
+        self._status_label_sidebar.setFont(QFont(T["font_body"], T["font_size_sm"]))
+        self._status_label_sidebar.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
+        orb_row.addWidget(self._status_label_sidebar, 1)
         layout.addLayout(orb_row)
-
-        self._status_detail_label = QLabel("")
-        self._status_detail_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
-        self._status_detail_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
-        self._status_detail_label.setWordWrap(True)
-        layout.addWidget(self._status_detail_label)
 
         layout.addSpacing(T["spacing_lg"])
 
@@ -393,13 +497,13 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ color: {T['text_primary']}; }}
         """
 
-        self._btn_tab_session = QPushButton("💬  Session")
+        self._btn_tab_session = QPushButton("Session")
         self._btn_tab_session.setFixedHeight(64)
         self._btn_tab_session.setStyleSheet(self._tab_active_style)
         self._btn_tab_session.clicked.connect(lambda: self._switch_tab(0))
         layout.addWidget(self._btn_tab_session)
 
-        self._btn_tab_dashboard = QPushButton("📈  Dashboard")
+        self._btn_tab_dashboard = QPushButton("Dashboard")
         self._btn_tab_dashboard.setFixedHeight(64)
         self._btn_tab_dashboard.setStyleSheet(self._tab_inactive_style)
         self._btn_tab_dashboard.clicked.connect(lambda: self._switch_tab(1))
@@ -416,7 +520,7 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ background-color: {T['bg_hover']}; color: {T['text_primary']}; border-color: {T['accent']}; }}
             QPushButton:pressed {{ background-color: {T['accent_soft']}; }}
         """
-        self._btn_finir = QPushButton("🔍  Finir et Analyser")
+        self._btn_finir = QPushButton("Analyser")
         self._btn_finir.setStyleSheet(btn_style)
         self._btn_finir.setFixedHeight(36)
         self._btn_finir.setToolTip("Analyser la session et extraire des mémoires")
@@ -425,14 +529,14 @@ class MainWindow(QMainWindow):
 
         layout.addSpacing(4)
 
-        self._btn_reset = QPushButton("↺  Nouvelle session")
+        self._btn_reset = QPushButton("↺  Nouveau")
         self._btn_reset.setStyleSheet(btn_style)
         self._btn_reset.setFixedHeight(36)
         self._btn_reset.setToolTip("Réinitialiser la conversation (R)")
         self._btn_reset.clicked.connect(self._on_reset)
         layout.addWidget(self._btn_reset)
 
-        self._btn_settings = QPushButton("⚙  Paramètres")
+        self._btn_settings = QPushButton("Paramètres")
         self._btn_settings.setStyleSheet(btn_style)
         self._btn_settings.setFixedHeight(36)
         self._btn_settings.setToolTip("Ouvrir les paramètres (S)")
@@ -501,9 +605,9 @@ class MainWindow(QMainWindow):
         layout.setSpacing(T["spacing_md"])
 
         # VAD toggle
-        self._btn_vad = AnimatedButton("◉  Auto")
+        self._btn_vad = AnimatedButton("Auto")
         self._btn_vad.setToolTip("Activer/désactiver la détection automatique (A)")
-        self._btn_vad.setFixedSize(90, 44)
+        self._btn_vad.setFixedSize(72, 44)
         self._btn_vad.setCheckable(True)
         self._btn_vad.clicked.connect(self._toggle_vad)
         layout.addWidget(self._btn_vad)
@@ -543,7 +647,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_send)
 
         # PTT button
-        self._btn_ptt = AnimatedButton("🎤  Parler")
+        self._btn_ptt = AnimatedButton("Parler")
         self._btn_ptt.setToolTip("Maintenir pour parler (Espace)")
         self._btn_ptt.setFixedSize(100, 44)
         self._btn_ptt.pressed.connect(self._on_ptt_press)
@@ -647,6 +751,11 @@ class MainWindow(QMainWindow):
         self._status_orb.set_color(color)
         self._status_orb.set_animated(state in (SessionState.LISTENING, SessionState.PROCESSING, SessionState.SPEAKING))
 
+        # Individual engine orbs
+        self._stt_orb.set_animated(state == SessionState.LISTENING)
+        self._llm_orb.set_animated(state == SessionState.PROCESSING)
+        self._tts_orb.set_animated(state == SessionState.SPEAKING)
+
         if state == SessionState.LISTENING:
             self._waveform.start()
         else:
@@ -656,11 +765,13 @@ class MainWindow(QMainWindow):
         self._status_detail_label.setText(msg)
 
     def _handle_models_ready(self, status: dict):
-        stt_ok = "✓" if status.get("stt") else "✗"
-        tts_ok = "✓" if status.get("tts") else "✗"
+        stt_ok = status.get("stt", False)
+        tts_ok = status.get("tts", False)
+        self._stt_orb.set_color(T["success"] if stt_ok else T["error"])
+        self._llm_orb.set_color(T["success"])
+        self._tts_orb.set_color(T["success"] if tts_ok else T["warning"])
         provider = self.session.tts_provider
-        self._model_badge.setText(f"STT {stt_ok}  LLM ✓  TTS {tts_ok}\n{provider}")
-        self._model_badge.setStyleSheet(f"color: {T['success']}; background: transparent;")
+        self._tts_label.setText(provider.capitalize() if provider not in ("none", "") else "TTS")
 
     def _coach_name(self) -> str:
         lang_key = self.settings.get("target_language", "english")
@@ -697,10 +808,10 @@ class MainWindow(QMainWindow):
     def _toggle_vad(self, checked: bool):
         if checked:
             self.session.start_listening_vad()
-            self._btn_vad.setText("◉  Actif")
+            self._btn_vad.setText("Actif")
         else:
             self.session.stop_listening_vad()
-            self._btn_vad.setText("◉  Auto")
+            self._btn_vad.setText("Auto")
 
     def _on_ptt_press(self):
         if not self._ptt_held:
@@ -744,10 +855,10 @@ class MainWindow(QMainWindow):
             self._settings_panel.move(self.width() - 400, 0)
             self._settings_panel.raise_()
             self._settings_panel.show()
-            self._btn_settings.setText("✕  Fermer")
+            self._btn_settings.setText("Fermer")
         else:
             self._settings_panel.hide()
-            self._btn_settings.setText("⚙  Paramètres")
+            self._btn_settings.setText("Paramètres")
 
     def _on_settings_changed(self, new_settings: dict):
         self.settings = new_settings
@@ -807,10 +918,10 @@ class MainWindow(QMainWindow):
             QMenu::separator {{ height: 1px; background: {T['border']}; margin: 4px 12px; }}
         """
         )
-        edit_action = menu.addAction(f"✏️  Modifier le profil")
+        edit_action = menu.addAction("Modifier le profil")
         menu.addSeparator()
-        switch_action = menu.addAction("🔄  Changer de profil")
-        new_action = menu.addAction("＋  Nouveau profil")
+        switch_action = menu.addAction("Changer de profil")
+        new_action = menu.addAction("Nouveau profil")
 
         action = menu.exec(self._btn_profile.mapToGlobal(self._btn_profile.rect().bottomLeft()))
         if action == edit_action:
@@ -903,7 +1014,7 @@ class MainWindow(QMainWindow):
             return
 
         self._btn_finir.setEnabled(False)
-        self._btn_finir.setText("⏳  Analyse en cours…")
+        self._btn_finir.setText("Analyse…")
 
         from PyQt6.QtCore import QObject, pyqtSignal as _sig
 
@@ -928,7 +1039,7 @@ class MainWindow(QMainWindow):
 
     def _on_finir_result(self, score, summary, suggestion_count):
         self._btn_finir.setEnabled(True)
-        self._btn_finir.setText("🔍  Finir et Analyser")
+        self._btn_finir.setText("Analyser")
         self._show_analysis_recap(score, summary, suggestion_count)
 
     def _show_analysis_recap(self, score, summary, suggestion_count):
@@ -943,7 +1054,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(16)
 
-        title = QLabel("📊 Résumé de la session")
+        title = QLabel("Résumé de session")
         title.setFont(QFont(T["font_display"], T["font_size_lg"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
         layout.addWidget(title)
@@ -973,7 +1084,7 @@ class MainWindow(QMainWindow):
             layout.addWidget(summary_edit)
 
         if suggestion_count > 0:
-            mem_lbl = QLabel(f"💡 {suggestion_count} mémoire(s) suggérée(s) — Consultez l'onglet Mémoires dans les paramètres.")
+            mem_lbl = QLabel(f"{suggestion_count} mémoire(s) suggérée(s) — Consultez l'onglet Mémoires dans les paramètres.")
             mem_lbl.setStyleSheet(f"color: {T['accent']}; background: transparent; font-size: {T['font_size_sm']}px;")
             mem_lbl.setWordWrap(True)
             layout.addWidget(mem_lbl)

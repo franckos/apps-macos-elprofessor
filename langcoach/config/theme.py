@@ -67,6 +67,7 @@ THEME = {
     "window_min_width": 800,
     "window_min_height": 600,
     "sidebar_width":    280,
+    "bottom_bar_height": 44,
 
     # ── Animation ────────────────────────────────────────────
     "anim_fast":        150,   # ms

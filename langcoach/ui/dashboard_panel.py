@@ -473,7 +473,7 @@ class DashboardPanel(QWidget):
         if not self._stats:
             return
         btn.setEnabled(False)
-        btn.setText("⏳ Analyse…")
+        btn.setText("Analyse…")
 
         def on_done(score, summary):
             def update_ui():
@@ -540,7 +540,7 @@ class DashboardPanel(QWidget):
         layout.addWidget(desc)
 
         if lesson.get("tip"):
-            tip = QLabel(f"💡 {lesson['tip']}")
+            tip = QLabel(lesson["tip"])
             tip.setFont(QFont(T["font_body"], T["font_size_xs"]))
             tip.setStyleSheet(f"color:{'#ff8888' if critical else '#8aaa8a'}; border:none;")
             tip.setWordWrap(True)
@@ -558,7 +558,7 @@ class DashboardPanel(QWidget):
         if not self._profile or not self._stats:
             return
         self._ai_btn.setEnabled(False)
-        self._ai_btn.setText("⏳ Analyse en cours…")
+        self._ai_btn.setText("Analyse en cours…")
         self._ai_result.setVisible(True)
         self._ai_result.setText("L'IA analyse tes lacunes…")
 

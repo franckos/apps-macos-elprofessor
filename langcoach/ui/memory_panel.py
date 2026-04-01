@@ -317,7 +317,7 @@ class MemoryDialog(QDialog):
         header.setStyleSheet(f"background-color: {T['bg_secondary']}; border-bottom: 1px solid {T['border']};")
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(20, 0, 16, 0)
-        title = QLabel("🧠  Mémoires")
+        title = QLabel("Mémoires")
         title.setFont(QFont(T["font_display"], T["font_size_lg"]))
         title.setStyleSheet(f"color: {T['text_primary']}; background: transparent;")
         h_layout.addWidget(title, 1)
@@ -372,7 +372,7 @@ class MemoryDialog(QDialog):
             b_layout.setContentsMargins(12, 10, 12, 10)
             b_layout.setSpacing(8)
 
-            b_title = QLabel(f"💡 {len(suggestions)} mémoire(s) suggérée(s) — à valider")
+            b_title = QLabel(f"{len(suggestions)} mémoire(s) suggérée(s) — à valider")
             b_title.setFont(QFont(T["font_body"], T["font_size_sm"]))
             b_title.setStyleSheet(f"color: {T['accent']}; background: transparent; font-weight: 600;")
             b_layout.addWidget(b_title)
