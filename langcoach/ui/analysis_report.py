@@ -482,8 +482,10 @@ class AnalysisReportWidget(QWidget):
         if vocabulary:
             self._content_layout.addWidget(self._build_vocabulary_card(vocabulary))
 
-        self._suggestions_section = self._build_suggestions_section(suggestions)
         if suggestions:
+            self._suggestions_section = self._build_suggestions_section(suggestions)
             self._content_layout.addWidget(self._suggestions_section)
+        else:
+            self._suggestions_section = None
 
         self._content_layout.addStretch()

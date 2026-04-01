@@ -240,12 +240,15 @@ class StatsEngine:
 
         analysis_result = [None, None]   # [score, analysis_dict]
         done_events = [False, False]     # [analysis_done, extraction_done]
+        _done_lock = threading.Lock()
 
         def _check_both_done():
-            if all(done_events):
-                score, analysis = analysis_result
-                suggestions = self._db.list_memory_suggestions(profile["id"])
-                on_done(score, analysis, suggestions)
+            with _done_lock:
+                if all(done_events):
+                    score, analysis = analysis_result
+                    suggestions = self._db.list_memory_suggestions(profile["id"])
+                    on_done(score, analysis, suggestions)
+                    done_events[0] = False  # prevent second call
 
         def _on_analysis(score, analysis):
             analysis_result[0] = score
