@@ -323,16 +323,51 @@ summary: Write in French. Be encouraging but honest."""
 
     @staticmethod
     def _parse_analysis_response(text: str) -> tuple:
+        """Returns (score: float, analysis: dict) with full structured data."""
+        empty = {"summary": "", "errors": [], "improvements": [], "vocabulary": []}
         try:
-            match = re.search(r'\{.*?\}', text, re.DOTALL)
+            match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
                 data = json.loads(match.group())
                 score = max(0.0, min(1.0, float(data.get("quality_score", 0.5))))
-                summary = str(data.get("summary", ""))
-                return score, summary
+                analysis = {
+                    "summary": str(data.get("summary", "")),
+                    "errors": data.get("errors", []) if isinstance(data.get("errors"), list) else [],
+                    "improvements": data.get("improvements", []) if isinstance(data.get("improvements"), list) else [],
+                    "vocabulary": data.get("vocabulary", []) if isinstance(data.get("vocabulary"), list) else [],
+                }
+                return score, analysis
         except (json.JSONDecodeError, ValueError, KeyError):
             pass
-        return 0.5, ""
+        return 0.5, empty
+
+    def _build_full_analysis_prompt(self, session: dict, exchanges: list) -> str:
+        """Builds the enriched analysis prompt used by 'Analyser' button."""
+        convo = "\n".join(
+            f"Apprenant : {e['user_text']}\nCoach : {e['ai_response'][:200]}"
+            for e in exchanges[:10]
+        )
+        return (
+            "Analyse cette séance d'apprentissage de langue. Réponds UNIQUEMENT avec un objet JSON valide.\n\n"
+            f"Séance :\n"
+            f"- Langue : {session['language']} ({session['level']})\n"
+            f"- Sujet : {session['topic']}\n"
+            f"- Échanges : {session['exchange_count']}\n"
+            f"- Erreurs détectées : {session['error_count']}\n\n"
+            f"Conversation :\n{convo[:2000]}\n\n"
+            "Réponds avec UNIQUEMENT ce JSON (pas d'autre texte) :\n"
+            '{"quality_score": 0.75, '
+            '"summary": "2-3 phrases bienveillantes en français résumant la session.", '
+            '"errors": [{"original": "phrase originale", "corrected": "phrase corrigée", "type": "grammar", "rule": "nom de la règle"}], '
+            '"improvements": ["Axe d\'amélioration 1 en français", "Axe d\'amélioration 2 en français"], '
+            '"vocabulary": [{"word": "mot_anglais", "translation": "traduction française", "example": "exemple en anglais."}]}\n\n'
+            "Règles :\n"
+            "- quality_score : 0.0 (très mauvais) à 1.0 (excellent)\n"
+            "- summary : en français, bienveillant, 2-3 phrases\n"
+            "- errors : toutes les erreurs réelles corrigées dans la conversation (max 8), ou [] si aucune\n"
+            "- improvements : 2 à 4 axes d'amélioration concrets en français\n"
+            "- vocabulary : 3 à 6 mots/expressions importants de la conversation, avec traduction et exemple"
+        )
 
     def get_lesson_cards(self, profile_id: str, threshold: int = 5) -> list:
         """Returns lesson cards for error patterns at or above threshold, ordered by count."""
