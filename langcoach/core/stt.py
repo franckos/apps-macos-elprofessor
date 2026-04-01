@@ -77,18 +77,22 @@ class STTEngine:
         if not self._initialized or not self._pipeline:
             return ""
         try:
-            result = self._pipeline(audio_path)
+            result = self._pipeline(audio_path, chunk_length_s=30, stride_length_s=5)
             return result.get("text", "").strip()
         except Exception as e:
             logger.error(f"Transcription error: {e}")
             return ""
 
     def transcribe_array(self, audio_array, sample_rate: int = 16000) -> str:
-        """Transcrit un array numpy"""
+        """Transcrit un array numpy — chunk_length_s active la transcription longue durée"""
         if not self._initialized or not self._pipeline:
             return ""
         try:
-            result = self._pipeline({"array": audio_array, "sampling_rate": sample_rate})
+            result = self._pipeline(
+                {"array": audio_array, "sampling_rate": sample_rate},
+                chunk_length_s=30,
+                stride_length_s=5,
+            )
             return result.get("text", "").strip()
         except Exception as e:
             logger.error(f"Transcription error: {e}")
@@ -215,6 +219,7 @@ class AudioRecorder:
                         self.on_audio_ready(audio, sr)
                         frames = []
                         speaking = False
+                        silence_start = None
 
         except Exception as e:
             logger.error(f"VAD loop error: {e}")

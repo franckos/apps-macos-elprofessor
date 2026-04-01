@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
     sig_assistant_done = pyqtSignal(str)
     sig_models_ready = pyqtSignal(dict)
     sig_error = pyqtSignal(str)
+    sig_status_detail = pyqtSignal(str)
 
     def __init__(self, db: Database, profile: dict):
         super().__init__()
@@ -279,6 +280,12 @@ class MainWindow(QMainWindow):
         self._status_label.setStyleSheet(f"color: {T['text_secondary']}; background: transparent;")
         orb_row.addWidget(self._status_label, 1)
         layout.addLayout(orb_row)
+
+        self._status_detail_label = QLabel("")
+        self._status_detail_label.setFont(QFont(T["font_mono"], T["font_size_xs"]))
+        self._status_detail_label.setStyleSheet(f"color: {T['text_muted']}; background: transparent;")
+        self._status_detail_label.setWordWrap(True)
+        layout.addWidget(self._status_detail_label)
 
         layout.addSpacing(T["spacing_lg"])
 
@@ -577,6 +584,7 @@ class MainWindow(QMainWindow):
         self.sig_assistant_done.connect(self._handle_ai_done)
         self.sig_models_ready.connect(self._handle_models_ready)
         self.sig_error.connect(self._handle_error)
+        self.sig_status_detail.connect(self._handle_status_detail)
         self._connect_session_signals()
 
     def _setup_shortcuts(self):
@@ -643,6 +651,9 @@ class MainWindow(QMainWindow):
             self._waveform.start()
         else:
             self._waveform.stop()
+
+    def _handle_status_detail(self, msg: str):
+        self._status_detail_label.setText(msg)
 
     def _handle_models_ready(self, status: dict):
         stt_ok = "✓" if status.get("stt") else "✗"
@@ -871,6 +882,7 @@ class MainWindow(QMainWindow):
         self.session.on_assistant_done = lambda t: self.sig_assistant_done.emit(t)
         self.session.on_models_ready = lambda s: self.sig_models_ready.emit(s)
         self.session.on_error = lambda e: self.sig_error.emit(e)
+        self.session.on_status_detail = lambda m: self.sig_status_detail.emit(m)
 
     def _scroll_to_bottom(self):
         QTimer.singleShot(

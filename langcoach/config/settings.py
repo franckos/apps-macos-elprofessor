@@ -83,6 +83,12 @@ TEACHER_STYLES = {
         "description": "Guide par questions, fait réfléchir",
         "system_hint": "Guide the student through questions rather than giving direct answers. Make them think.",
     },
+    "elegant": {
+        "label": "Élégant",
+        "emoji": "✦",
+        "description": "Distingué, luxueux, vocabulaire raffiné et profond",
+        "system_hint": "Speak with sophistication and elegance. Use refined, precise vocabulary. Favour nuance, depth and stylistic flourish. Correct errors with grace, never harshness.",
+    },
 }
 
 # ── Niveaux ───────────────────────────────────────────────────

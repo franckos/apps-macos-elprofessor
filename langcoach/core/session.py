@@ -49,6 +49,7 @@ class SessionManager:
         self.on_assistant_done: Optional[Callable[[str], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
         self.on_models_ready: Optional[Callable[[dict], None]] = None
+        self.on_status_detail: Optional[Callable[[str], None]] = None
 
         self._ptt_active = False
         self._profile: Optional[dict] = None
@@ -70,19 +71,25 @@ class SessionManager:
 
         try:
             # STT
+            self._emit_detail("STT : chargement du modèle vocal...")
             self._stt = STTEngine(settings=self.settings, on_transcript=self._on_audio_transcribed)
             status["stt"] = self._stt.initialize()
+            self._emit_detail(f"STT : {'prêt' if status['stt'] else 'indisponible'}")
 
             # LLM
+            self._emit_detail("LLM : connexion Ollama...")
             self._llm = LLMEngine(config=MODELS["llm"])
             user_name = self._profile.get("name", "the student") if self._profile else "the student"
             self._llm.set_system_prompt(build_system_prompt(self.settings, user_name=user_name))
             status["llm"] = True
+            self._emit_detail("LLM : prêt")
 
             # TTS
+            self._emit_detail("TTS : chargement moteur vocal...")
             self._tts = TTSEngine(config=MODELS["tts"])
             self._tts.set_coach(self._get_coach_cfg(self.settings))
             status["tts"] = self._tts.initialize()
+            self._emit_detail(f"TTS : {'prêt' if status['tts'] else 'indisponible'}")
 
             # Recorder audio
             self._recorder = AudioRecorder(
@@ -160,9 +167,13 @@ class SessionManager:
             return
 
         def transcribe():
+            duration = round(len(audio_array) / sample_rate, 1)
+            self._emit_detail(f"STT : transcription ({duration}s d'audio)...")
             transcript = self._stt.transcribe_array(audio_array, sample_rate)
             if transcript:
                 self._on_audio_transcribed(transcript)
+            else:
+                self._emit_detail("STT : aucune parole détectée")
 
         threading.Thread(target=transcribe, daemon=True).start()
 
@@ -170,6 +181,9 @@ class SessionManager:
         """Callback quand le texte est transcrit"""
         if not text.strip():
             return
+
+        preview = text[:50] + ("..." if len(text) > 50 else "")
+        self._emit_detail(f"STT : \"{preview}\"")
 
         if self.on_user_transcript:
             self.on_user_transcript(text)
@@ -183,11 +197,17 @@ class SessionManager:
         import time
         self._exchange_start_ms = int(time.time() * 1000)
         self._set_state(SessionState.PROCESSING)
+        self._token_count = 0
+        model_name = MODELS["llm"].get("model", "llm")
+        self._emit_detail(f"LLM : génération ({model_name})...")
 
         full_response = []
 
         def on_token(token: str):
             full_response.append(token)
+            self._token_count += 1
+            if self._token_count % 10 == 0:
+                self._emit_detail(f"LLM : génération... ({self._token_count} tokens)")
             if self.on_assistant_token:
                 self.on_assistant_token(token)
 
@@ -200,6 +220,8 @@ class SessionManager:
                 if self.on_error:
                     self.on_error(text)
                 return
+            elapsed = round((int(time.time() * 1000) - self._exchange_start_ms) / 1000, 1)
+            self._emit_detail(f"LLM : réponse générée ({self._token_count} tokens, {elapsed}s)")
             # Record to stats (skip greeting)
             if not is_greeting and self._stats and user_text.strip():
                 duration_ms = int(time.time() * 1000) - self._exchange_start_ms
@@ -217,14 +239,18 @@ class SessionManager:
         """Lance la synthèse vocale"""
         if not self._tts:
             self._set_state(SessionState.READY)
+            self._emit_detail("Prêt")
             return
 
         self._set_state(SessionState.SPEAKING)
+        word_count = len(text.split())
+        self._emit_detail(f"TTS : synthèse vocale ({word_count} mots)...")
         if self._reachy:
             self._reachy.send_speaking(True)
 
         def on_done():
             self._set_state(SessionState.READY)
+            self._emit_detail("Prêt — en écoute")
             if self._reachy:
                 self._reachy.send_speaking(False)
 
@@ -302,6 +328,10 @@ class SessionManager:
         self._state = state
         if self.on_state_change:
             self.on_state_change(state)
+
+    def _emit_detail(self, msg: str):
+        if self.on_status_detail:
+            self.on_status_detail(msg)
 
     @property
     def state(self) -> SessionState:
