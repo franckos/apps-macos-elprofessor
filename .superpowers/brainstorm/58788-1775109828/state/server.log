@@ -11,3 +11,4 @@
 {"source":"user-event","type":"click","text":"A\n    \n      Étoiles entières\n      Simple, robuste, fonctionne parfaitement avec PyQt6 (caractère Unicode ★/☆)","choice":"full","id":null,"timestamp":1775110012234}
 {"source":"user-event","type":"click","text":"A\n    \n      Étoiles entières\n      Simple, robuste, fonctionne parfaitement avec PyQt6 (caractère Unicode ★/☆)","choice":"full","id":null,"timestamp":1775110012466}
 {"type":"screen-added","file":"/Users/franckmarandet/Documents/WORK/QUANTELYS/APPs/ElProfessor/MacOS/.superpowers/brainstorm/58788-1775109828/content/waiting-1.html"}
+{"type":"server-stopped","reason":"idle timeout"}

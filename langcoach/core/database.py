@@ -356,6 +356,14 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def delete_error_pattern(self, profile_id: str, error_type: str, rule: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM error_patterns WHERE profile_id=? AND error_type=? AND rule=?",
+                (profile_id, error_type, rule),
+            )
+            self._conn.commit()
+
     def get_quality_progression(self, profile_id: str, limit: int = 10) -> list:
         with self._lock:
             rows = self._conn.execute(

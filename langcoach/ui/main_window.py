@@ -229,6 +229,7 @@ class MainWindow(QMainWindow):
 
         # Dashboard tab
         self._dashboard_panel = DashboardPanel(db=self._db, stats_engine=self._stats)
+        self._dashboard_panel.on_practice_pattern = self._on_practice_pattern
         self._main_stack.addWidget(self._dashboard_panel)
 
         main_layout.addWidget(self._main_stack, 1)
@@ -1066,6 +1067,22 @@ class MainWindow(QMainWindow):
     def _on_analysis_go_dashboard(self):
         """Called from analysis report 'Tableau de bord' button."""
         self._switch_tab(1)
+
+    def _on_practice_pattern(self, error_type: str, rule: str):
+        """Start a focused practice session on the given error pattern."""
+        while self._chat_layout.count() > 1:
+            item = self._chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.session.reset_session()
+        topic = f"Pratique : {rule.replace('_', ' ')} ({error_type})"
+        self._start_with_topic(topic)
+        self._switch_tab(0)
+        message = (
+            f"Je veux pratiquer ce point : {rule.replace('_', ' ')} ({error_type}). "
+            "Commence par m'expliquer la règle en contexte, puis propose-moi des exercices pratiques adaptés à mon niveau."
+        )
+        QTimer.singleShot(200, lambda: self.session.send_text(message))
 
     # ── Topic picker ──────────────────────────────────────────
 

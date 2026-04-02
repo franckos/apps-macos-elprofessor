@@ -86,6 +86,7 @@ class DashboardPanel(QWidget):
         self._db = db
         self._stats = stats_engine
         self._profile: Optional[dict] = None
+        self.on_practice_pattern = None  # callable(error_type: str, rule: str)
         self._build()
 
     def _build(self):
@@ -364,7 +365,45 @@ class DashboardPanel(QWidget):
         badge.setFont(QFont(T["font_mono"], T["font_size_md"]))
         badge.setStyleSheet(f"color:{border}; border:none;")
         row.addWidget(badge)
+
+        accent = T["accent"]
+        practice_btn = QPushButton("🎯 Pratiquer")
+        practice_btn.setFixedHeight(28)
+        practice_btn.setFixedWidth(80)
+        practice_btn.setStyleSheet(f"""
+            QPushButton {{ background:rgba(100,160,255,0.15); color:{accent}; border:1px solid rgba(100,160,255,0.35);
+                border-radius:{T['radius_sm']}px; font-size:{T['font_size_xs']}px; font-weight:bold; }}
+            QPushButton:hover {{ background:rgba(100,160,255,0.25); }}
+        """)
+        error_type = p["error_type"]
+        rule = p["rule"]
+        practice_btn.clicked.connect(lambda _, et=error_type, ru=rule, card=w: self._practice_pattern(et, ru, card))
+        row.addWidget(practice_btn)
+
+        del_btn = QPushButton("🗑")
+        del_btn.setFixedSize(28, 28)
+        del_btn.setStyleSheet(f"""
+            QPushButton {{ background:transparent; color:{T['text_muted']}; border:none;
+                border-radius:{T['radius_sm']}px; font-size:{T['font_size_sm']}px; }}
+            QPushButton:hover {{ color:{T['error']}; background:#2a1a1a; }}
+        """)
+        del_btn.clicked.connect(lambda _, et=error_type, ru=rule, card=w: self._delete_pattern(et, ru, card))
+        row.addWidget(del_btn)
         return w
+
+    def _practice_pattern(self, error_type: str, rule: str, card: QWidget):
+        if self._profile:
+            self._db.delete_error_pattern(self._profile["id"], error_type, rule)
+        card.hide()
+        card.deleteLater()
+        if callable(self.on_practice_pattern):
+            self.on_practice_pattern(error_type, rule)
+
+    def _delete_pattern(self, error_type: str, rule: str, card: QWidget):
+        if self._profile:
+            self._db.delete_error_pattern(self._profile["id"], error_type, rule)
+        card.hide()
+        card.deleteLater()
 
     def _refresh_sessions(self, profile_id: str):
         self._clear(self._sessions_layout)
