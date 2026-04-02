@@ -16,7 +16,7 @@ from PyQt6.QtGui import QFont, QPainter, QColor, QBrush
 from config.theme import T
 from core.database import Database
 from core.stats_engine import StatsEngine
-from langcoach.ui.analysis_report import score_to_stars
+from ui.analysis_report import score_to_stars
 
 
 class MiniBarChart(QWidget):
