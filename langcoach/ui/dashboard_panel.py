@@ -16,6 +16,7 @@ from PyQt6.QtGui import QFont, QPainter, QColor, QBrush
 from config.theme import T
 from core.database import Database
 from core.stats_engine import StatsEngine
+from langcoach.ui.analysis_report import score_to_stars
 
 
 class MiniBarChart(QWidget):
@@ -417,6 +418,10 @@ class DashboardPanel(QWidget):
             ql.setFont(QFont(T["font_mono"], T["font_size_sm"]))
             ql.setStyleSheet(f"color:{qc}; border:none;")
             top.addWidget(ql)
+            sl = QLabel(score_to_stars(q))
+            sl.setFont(QFont(T["font_mono"], T["font_size_sm"]))
+            sl.setStyleSheet("color:#c8a84b; border:none;")
+            top.addWidget(sl)
 
         # Bouton Analyser si pas encore de résumé et au moins un échange
         if not s.get("summary") and s.get("exchange_count", 0) > 0:
