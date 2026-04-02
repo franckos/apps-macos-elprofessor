@@ -72,6 +72,41 @@ class ScoreCircle(QWidget):
         painter.end()
 
 
+class StarBadge(QFrame):
+    """Compact gold badge showing star rating (e.g. ★★★★☆  4/5)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(
+            "background: #c8a84b18;"
+            "border: 1px solid #c8a84b44;"
+            "border-radius: 8px;"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(6)
+
+        self._stars_lbl = QLabel("☆☆☆☆☆")
+        self._stars_lbl.setStyleSheet(
+            "color: #c8a84b; background: transparent; border: none; font-size: 15px;"
+        )
+        layout.addWidget(self._stars_lbl)
+
+        self._num_lbl = QLabel("—/5")
+        self._num_lbl.setStyleSheet(
+            f"color: #c8a84b; background: transparent; border: none;"
+            f" font-size: {T['font_size_sm']}px; font-weight: 600;"
+        )
+        layout.addWidget(self._num_lbl)
+
+    def set_score(self, score: Optional[float]):
+        self._stars_lbl.setText(score_to_stars(score))
+        if score is None:
+            self._num_lbl.setText("—/5")
+        else:
+            self._num_lbl.setText(f"{round(score * 5)}/5")
+
+
 class AnalysisReportWidget(QWidget):
     """Full-screen post-session analysis report — sits at _session_stack index 2."""
 
@@ -137,6 +172,8 @@ class AnalysisReportWidget(QWidget):
 
         layout.addLayout(info_col)
         layout.addStretch()
+        self._star_badge = StarBadge(header)
+        layout.addWidget(self._star_badge)
 
         return header
 
@@ -468,6 +505,7 @@ class AnalysisReportWidget(QWidget):
 
         # Update header
         self._score_circle.set_score(score)
+        self._star_badge.set_score(score)
         if session_info:
             parts = [
                 session_info.get("language", ""),
