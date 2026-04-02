@@ -14,6 +14,14 @@ from PyQt6.QtGui import QPainter, QPen, QFont, QColor
 from config.theme import T
 
 
+def score_to_stars(score: Optional[float]) -> str:
+    """Convert a 0.0–1.0 score to a 5-char Unicode star string (e.g. '★★★☆☆')."""
+    if score is None:
+        return "☆☆☆☆☆"
+    n = round(score * 5)
+    return "★" * n + "☆" * (5 - n)
+
+
 class ScoreCircle(QWidget):
     """Circular score indicator drawn with QPainter."""
 
