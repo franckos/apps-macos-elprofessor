@@ -59,8 +59,12 @@ def build_system_prompt(settings: dict, user_name: str = "the student", memories
 ## Tone
 {style['description']}
 
+## Instructions - IMPORTANT!
+{level['instructions']}
+
+
 ## Session Start
-Greet {user_name} warmly in {lang_name}, introduce yourself briefly as {coach_name}, and open the topic "{topic}" with an engaging question suited to {level_key} level.
+Greet {user_name} warmly in {lang_name} and open the topic "{topic}" with an engaging question suited to {level_key} level.
 """
     memory_block = _format_memory_block(memories)
     if memory_block:
@@ -75,9 +79,7 @@ def _format_memory_block(memories: list) -> str:
     lines = []
     for m in memories:
         tags = m["tags"] if isinstance(m["tags"], list) else json.loads(m["tags"])
-        first_tag = next(
-            (t for t in tags if t not in ("important", "confidentiel")), "perso"
-        )
+        first_tag = next((t for t in tags if t not in ("important", "confidentiel")), "perso")
         lines.append(f"- [{first_tag}] {m['content']}")
     return "## Ce que tu sais sur ton élève\n" + "\n".join(lines)
 

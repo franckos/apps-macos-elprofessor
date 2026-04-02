@@ -1,0 +1,204 @@
+<h2>Affichage des étoiles — quelle approche ?</h2>
+<p class="subtitle">Le score (0.0–1.0) devient une note sur 5 étoiles. Quelle version te parle le plus ?</p>
+
+<style>
+  .mock-app {
+    background: #1a1a1f;
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .mock-header {
+    background: #23232a;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid #333;
+  }
+  .mock-title { color: #f0f0f0; font-weight: 600; font-size: 15px; }
+  .mock-subtitle { color: #888; font-size: 12px; margin-top: 2px; }
+  .mock-list-item {
+    background: #23232a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .mock-list-label { color: #ccc; font-size: 13px; }
+  .mock-list-date { color: #666; font-size: 11px; }
+
+  /* Arc circle */
+  .arc-circle {
+    width: 64px; height: 64px;
+    position: relative; flex-shrink: 0;
+  }
+  .arc-circle svg { position: absolute; top: 0; left: 0; }
+  .arc-text {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-weight: 700; font-size: 14px;
+  }
+
+  /* Stars */
+  .stars { color: #c8a84b; font-size: 18px; letter-spacing: 2px; }
+  .stars .empty { color: #444; }
+  .stars-sm { color: #c8a84b; font-size: 13px; letter-spacing: 1px; }
+  .stars-sm .empty { color: #444; }
+
+  /* Big star block */
+  .star-block {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    width: 64px; flex-shrink: 0;
+  }
+  .star-block .stars { font-size: 13px; letter-spacing: 1px; }
+  .star-num { color: #c8a84b; font-size: 11px; margin-top: 2px; font-weight: 600; }
+
+  /* Inline badge */
+  .score-badge {
+    display: flex; align-items: center; gap: 4px;
+    background: #c8a84b18; border: 1px solid #c8a84b44;
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .badge-stars { color: #c8a84b; font-size: 13px; letter-spacing: 1px; }
+  .badge-label { color: #c8a84b; font-size: 11px; font-weight: 600; }
+
+  .pct-green { color: #4aaa4a; font-weight: 600; font-size: 13px; }
+  .pct-orange { color: #c8a84b; font-weight: 600; font-size: 13px; }
+  .pct-red { color: #cc4444; font-weight: 600; font-size: 13px; }
+</style>
+
+<div class="cards">
+
+  <!-- Option A: Étoiles seules dans le header -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-app">
+        <div class="mock-header">
+          <!-- Remplace le cercle par un bloc étoiles -->
+          <div class="star-block">
+            <div class="stars">★★★★<span class="empty">★</span></div>
+            <div class="star-num">4 / 5</div>
+          </div>
+          <div>
+            <div class="mock-title">Rapport de session</div>
+            <div class="mock-subtitle">spanish · A2 · Culture & ciné</div>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; background: #1a1a1f;">
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Hier, 14:32</div>
+            </div>
+            <div class="stars-sm">★★★<span class="empty">★★</span></div>
+          </div>
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Lundi, 10:15</div>
+            </div>
+            <div class="stars-sm">★★★★★</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Étoiles simples</h3>
+      <p>Remplace complètement le cercle et le % par des étoiles (★★★★☆). Affiché aussi dans la liste des sessions. Épuré.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Arc + étoiles dans le texte central -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-app">
+        <div class="mock-header">
+          <!-- Cercle arc SVG avec étoiles au centre -->
+          <div class="arc-circle">
+            <svg width="64" height="64" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="30" fill="none" stroke="#333" stroke-width="7"/>
+              <path d="M 40 10 A 30 30 0 1 1 39.9 10" fill="none" stroke="#c8a84b" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+            <div class="arc-text" style="color:#c8a84b; font-size:11px; line-height:1;">★★★★</div>
+          </div>
+          <div>
+            <div class="mock-title">Rapport de session</div>
+            <div class="mock-subtitle">spanish · A2 · Culture & ciné</div>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; background: #1a1a1f;">
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Hier, 14:32</div>
+            </div>
+            <div class="stars-sm">★★★<span class="empty">★★</span></div>
+          </div>
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Lundi, 10:15</div>
+            </div>
+            <div class="stars-sm">★★★★★</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Arc + étoiles au centre</h3>
+      <p>Garde l'arc animé (progression visuelle), mais remplace le chiffre % par des étoiles à l'intérieur du cercle.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Badge étoiles compact -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-app">
+        <div class="mock-header">
+          <!-- Cercle arc avec % + badge étoiles à droite -->
+          <div class="arc-circle">
+            <svg width="64" height="64" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="30" fill="none" stroke="#333" stroke-width="7"/>
+              <path d="M 40 10 A 30 30 0 1 1 39.9 10" fill="none" stroke="#c8a84b" stroke-width="7" stroke-linecap="round"/>
+            </svg>
+            <div class="arc-text" style="color:#c8a84b;">80%</div>
+          </div>
+          <div style="flex:1">
+            <div class="mock-title">Rapport de session</div>
+            <div class="mock-subtitle">spanish · A2 · Culture & ciné</div>
+          </div>
+          <div class="score-badge">
+            <span class="badge-stars">★★★★</span>
+            <span class="badge-label">4/5</span>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; background: #1a1a1f;">
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Hier, 14:32</div>
+            </div>
+            <div class="stars-sm">★★★<span class="empty">★★</span></div>
+          </div>
+          <div class="mock-list-item">
+            <div>
+              <div class="mock-list-label">Session espagnol</div>
+              <div class="mock-list-date">Lundi, 10:15</div>
+            </div>
+            <div class="stars-sm">★★★★★</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Arc + badge étoiles</h3>
+      <p>Garde l'arc et ajoute un badge ★ 4/5 en haut à droite du header. Double lecture : progression visuelle + note intuitive.</p>
+    </div>
+  </div>
+
+</div>

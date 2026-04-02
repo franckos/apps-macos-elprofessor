@@ -1,0 +1,79 @@
+<h2>Demi-étoiles ou étoiles entières ?</h2>
+<p class="subtitle">Le score est une valeur continue (ex: 0.72). Comment l'arrondir ?</p>
+
+<style>
+  .demo-row {
+    display: flex; align-items: center; gap: 16px;
+    background: #23232a; border-radius: 8px; padding: 10px 16px;
+    margin-bottom: 8px;
+  }
+  .demo-score { color: #888; font-size: 12px; width: 60px; flex-shrink: 0; font-family: monospace; }
+  .stars-full { color: #c8a84b; font-size: 18px; letter-spacing: 2px; }
+  .stars-full .empty { color: #3a3a3a; }
+  .stars-half { color: #c8a84b; font-size: 18px; letter-spacing: 2px; }
+  .stars-half .empty { color: #3a3a3a; }
+  .col-label { color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: center; margin-bottom: 8px; }
+  .cols { display: flex; gap: 16px; }
+  .col { flex: 1; }
+  .badge-sm {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #c8a84b18; border: 1px solid #c8a84b44;
+    border-radius: 6px; padding: 3px 8px;
+    font-size: 12px; color: #c8a84b; font-weight: 600;
+  }
+</style>
+
+<div class="split">
+  <div class="mockup" style="cursor:pointer" onclick="selectOption('full')">
+    <div class="mockup-header" id="label-full">Option A — Étoiles entières (arrondi simple)</div>
+    <div class="mockup-body">
+      <div class="demo-row"><span class="demo-score">score 0.95</span><span class="stars-full">★★★★★</span><span class="badge-sm">5/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.78</span><span class="stars-full">★★★★<span class="empty">★</span></span><span class="badge-sm">4/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.62</span><span class="stars-full">★★★<span class="empty">★★</span></span><span class="badge-sm">3/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.50</span><span class="stars-full">★★★<span class="empty">★★</span></span><span class="badge-sm">3/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.35</span><span class="stars-full">★★<span class="empty">★★★</span></span><span class="badge-sm">2/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.18</span><span class="stars-full">★<span class="empty">★★★★</span></span><span class="badge-sm">1/5</span></div>
+      <p style="color:#666; font-size:12px; margin-top:12px;">Simple, lisible. Arrondi au plus proche (round(score×5)).</p>
+    </div>
+  </div>
+
+  <div class="mockup" style="cursor:pointer" onclick="selectOption('half')">
+    <div class="mockup-header" id="label-half">Option B — Demi-étoiles (précision ×2)</div>
+    <div class="mockup-body">
+      <div class="demo-row"><span class="demo-score">score 0.95</span><span class="stars-half">★★★★★</span><span class="badge-sm">5/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.78</span><span class="stars-half">★★★★<span style="background: linear-gradient(to right, #c8a84b 50%, #3a3a3a 50%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">★</span></span><span class="badge-sm">4½/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.62</span><span class="stars-half">★★★<span style="background: linear-gradient(to right, #c8a84b 50%, #3a3a3a 50%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">★</span><span class="empty">★</span></span><span class="badge-sm">3½/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.50</span><span class="stars-half">★★★<span class="empty">★★</span></span><span class="badge-sm">3/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.35</span><span class="stars-half">★★<span style="background: linear-gradient(to right, #c8a84b 50%, #3a3a3a 50%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">★</span><span class="empty">★★</span></span><span class="badge-sm">2½/5</span></div>
+      <div class="demo-row"><span class="demo-score">score 0.18</span><span class="stars-half">★<span class="empty">★★★★</span></span><span class="badge-sm">1/5</span></div>
+      <p style="color:#666; font-size:12px; margin-top:12px;">Plus précis. Note : les demi-étoiles se font avec un hack CSS (gradient), rendu PyQt peut différer.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectOption(choice) {
+  document.querySelectorAll('.mockup').forEach(m => m.style.border = '');
+  const labels = { full: 'A', half: 'B' };
+  // Use the existing toggleSelect mechanism
+  const fakeEl = { dataset: { choice: choice }, classList: { contains: () => false, add: () => {}, remove: () => {} } };
+  if (typeof recordClick === 'function') recordClick(choice, document.getElementById('label-' + choice).textContent);
+}
+</script>
+
+<div class="options" style="margin-top: 16px;">
+  <div class="option" data-choice="full" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Étoiles entières</h3>
+      <p>Simple, robuste, fonctionne parfaitement avec PyQt6 (caractère Unicode ★/☆)</p>
+    </div>
+  </div>
+  <div class="option" data-choice="half" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Demi-étoiles</h3>
+      <p>Plus de granularité. Nécessite un rendu custom en PyQt (QPainter)</p>
+    </div>
+  </div>
+</div>
